@@ -3,6 +3,7 @@ export const SYSTEM_ROLES = [
   "teacher",
   "institution_admin",
   "royal_college_staff",
+  "college_staff",
   "president",
   "super_admin",
 ] as const;
@@ -110,6 +111,7 @@ export const ROLE_PRESENTATION: Record<SystemRole, { label: string; portal: stri
   teacher: { label: "อาจารย์ประจำวิชา", portal: "Teacher Portal", home: "/teacher/dashboard" },
   institution_admin: { label: "ผู้ดูแลสถาบัน", portal: "Institution Portal", home: "/institution/dashboard" },
   royal_college_staff: { label: "เจ้าหน้าที่ราชวิทยาลัย", portal: "Staff Portal", home: "/staff/dashboard" },
+  college_staff: { label: "เจ้าหน้าที่วิทยาลัย", portal: "Staff Portal", home: "/staff/college" },
   president: { label: "ประธาน / ผู้ลงนาม", portal: "President Portal", home: "/president/dashboard" },
   super_admin: { label: "ผู้ดูแลระบบสูงสุด", portal: "Super Admin Portal", home: "/admin/dashboard" },
 };
@@ -188,6 +190,11 @@ export function isRoleScopeCompatible(
   if (role === "royal_college_staff") {
     return organisation.kind === "royal_college" &&
       resourceScopes.every((scope) => scope === "*" || scope.startsWith("staff:"));
+  }
+  if (role === "college_staff") {
+    return organisation.kind === "college" &&
+      resourceScopes.includes(`college:${organisation.id}`) &&
+      resourceScopes.every((scope) => scope.startsWith("college:"));
   }
   if (role === "president") {
     const requiredScope = organisation.kind === "royal_college"

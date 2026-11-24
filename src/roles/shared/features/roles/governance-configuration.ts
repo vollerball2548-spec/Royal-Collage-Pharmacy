@@ -33,6 +33,7 @@ export const DEFAULT_GOVERNANCE_CONFIGURATION: GovernanceConfiguration = {
     { userId: "teacher-001", role: "teacher", organisationId: ORGANISATIONS.siriraj.id, resourceScopes: ["course:proposal", "course:assigned", "course:offering-bcp-101", "course:offering-vpt-301"] },
     { userId: "institution-admin-001", role: "institution_admin", organisationId: ORGANISATIONS.siriraj.id, resourceScopes: ["institution:org-inst-siriraj"] },
     { userId: "staff-001", role: "royal_college_staff", organisationId: ORGANISATIONS.royalCollege.id, resourceScopes: ["staff:central"] },
+    { userId: "college-staff-vpt-001", role: "college_staff", organisationId: ORGANISATIONS.therapeuticCollege.id, resourceScopes: [`college:${ORGANISATIONS.therapeuticCollege.id}`] },
     { userId: "president-vpt-current", role: "president", organisationId: ORGANISATIONS.therapeuticCollege.id, resourceScopes: ["signature:college"] },
     { userId: "super-admin", role: "super_admin", organisationId: ORGANISATIONS.system.id, resourceScopes: ["*"] },
   ],

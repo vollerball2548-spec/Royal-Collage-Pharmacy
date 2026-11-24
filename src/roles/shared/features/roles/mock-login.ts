@@ -104,6 +104,15 @@ const roleAccounts = [
     resourceScopes: ["staff:central"],
   },
   {
+    identifier: "college",
+    password: "2323",
+    role: "college_staff",
+    displayName: "เจ้าหน้าที่วิทยาลัยเภสัชบำบัด (ตัวอย่าง)",
+    userId: "college-staff-vpt-001",
+    organisation: ORGANISATIONS.therapeuticCollege,
+    resourceScopes: [`college:${ORGANISATIONS.therapeuticCollege.id}`],
+  },
+  {
     identifier: "president",
     password: "2323",
     role: "president",
@@ -252,6 +261,10 @@ function normalizeLegacyRole(value: unknown): SystemRole | null {
 function defaultOrganisation(role: SystemRole, collegeCode?: string): OrganisationScope {
   if (role === "super_admin") return ORGANISATIONS.system;
   if (role === "royal_college_staff") return ORGANISATIONS.royalCollege;
+  if (role === "college_staff") {
+    return COLLEGE_ORGANISATIONS.find((organisation) => organisation.code === collegeCode)
+      ?? ORGANISATIONS.therapeuticCollege;
+  }
   if (role === "president") {
     if (collegeCode === ORGANISATIONS.royalCollege.code) return ORGANISATIONS.royalCollege;
     return COLLEGE_ORGANISATIONS.find((organisation) => organisation.code === collegeCode)
@@ -263,6 +276,7 @@ function defaultOrganisation(role: SystemRole, collegeCode?: string): Organisati
 function defaultResourceScopes(role: SystemRole, organisation: OrganisationScope) {
   if (role === "student") return ["student:self"];
   if (role === "teacher") return [];
+  if (role === "college_staff") return [`college:${organisation.id}`];
   if (role === "president") {
     return [organisation.kind === "royal_college"
       ? "signature:royal_college"

@@ -17,7 +17,7 @@ describe("Super Admin governance configuration", () => {
     window.localStorage.clear();
   });
 
-  it("contains exactly the six canonical roles", () => {
+  it("contains exactly the seven canonical roles", () => {
     expect(new Set(DEFAULT_GOVERNANCE_CONFIGURATION.userAssignments.map((item) => item.role)))
       .toEqual(new Set(SYSTEM_ROLES));
     expect(SYSTEM_ROLES).toEqual([
@@ -25,6 +25,7 @@ describe("Super Admin governance configuration", () => {
       "teacher",
       "institution_admin",
       "royal_college_staff",
+      "college_staff",
       "president",
       "super_admin",
     ]);

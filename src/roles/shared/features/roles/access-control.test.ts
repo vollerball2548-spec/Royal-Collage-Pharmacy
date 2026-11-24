@@ -38,12 +38,13 @@ function session(
 }
 
 describe("canonical portal access", () => {
-  it("contains exactly the six approved logged-in roles", () => {
+  it("contains exactly the seven approved logged-in roles", () => {
     expect(SYSTEM_ROLES).toEqual([
       "student",
       "teacher",
       "institution_admin",
       "royal_college_staff",
+      "college_staff",
       "president",
       "super_admin",
     ]);
@@ -57,6 +58,15 @@ describe("canonical portal access", () => {
         expect(canPortalSessionAccessArea(current, otherArea, otherPath)).toBe(false);
       }
     }
+  });
+
+  it("lets College Staff into the Staff Portal only with its own college scope", () => {
+    const collegeStaff = session("college_staff", ORGANISATIONS.therapeuticCollege, [`college:${ORGANISATIONS.therapeuticCollege.id}`]);
+    expect(canPortalSessionAccessArea(collegeStaff, "staff", "/staff/college")).toBe(true);
+    expect(canPortalSessionAccessArea(collegeStaff, "institution", "/institution/dashboard")).toBe(false);
+    expect(canPortalSessionAccessArea(collegeStaff, "staff", "/staff/dashboard", {
+      exactOrganisationId: ORGANISATIONS.royalCollege.id,
+    })).toBe(false);
   });
 
   it("keeps the existing member route as a Student-only compatibility alias", () => {

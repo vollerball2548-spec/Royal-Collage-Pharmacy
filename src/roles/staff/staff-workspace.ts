@@ -16,3 +16,7 @@ export const STAFF_NAV_ITEMS: readonly WorkspaceNavItem[] = [
   { href: "/staff/signatures", icon: "draw", label: "เตรียมเอกสารลงนาม", section: ACTION_SECTION },
   { href: "/staff/registrations", icon: "fact_check", label: "ติดตามการลงทะเบียน", section: READ_ONLY_SECTION },
 ] as const;
+
+export const COLLEGE_STAFF_NAV_ITEMS: readonly WorkspaceNavItem[] = [
+  { href: "/staff/college", icon: "account_balance", label: "งานวิทยาลัย" },
+] as const;

@@ -24,10 +24,13 @@ import {
   getLicenseEligibility,
   LicenseEligibilityNotice,
 } from "@/roles/shared/features/license-eligibility";
-import { ORGANISATIONS } from "@/roles/shared/features/roles/access-model";
+import { COLLEGE_ORGANISATIONS, ORGANISATIONS } from "@/roles/shared/features/roles/access-model";
 import { currentMemberPassport } from "@/roles/shared/member/domain/member";
 
-const COLLEGE_ORGANISATION_FALLBACK = ORGANISATIONS.royalCollege.id;
+// Programs without a training institution are handled by the owning college (seen by College Staff).
+function collegeOrganisationId(collegeCode: string) {
+  return COLLEGE_ORGANISATIONS.find((organisation) => organisation.code === collegeCode)?.id ?? ORGANISATIONS.royalCollege.id;
+}
 
 export default function StudyApplicationPage() {
   const router = useRouter();
@@ -70,8 +73,8 @@ export default function StudyApplicationPage() {
         program: offering.titleTh,
         date: submittedAt.toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" }),
         submittedAt: submittedAt.toISOString(),
-        // TODO(business): หลักสูตรวุฒิบัตรระบบ Credit Bank ไม่มีสถาบันฝึกอบรมในใบสมัคร — ใครเป็นผู้พิจารณาใบสมัคร (เจ้าหน้าที่วิทยาลัย?) ยังไม่มี role ในระบบ
-        institutionId: institutionId ?? COLLEGE_ORGANISATION_FALLBACK,
+        // TODO(business): ใบสมัครวุฒิบัตรระบบ Credit Bank ส่งไปที่วิทยาลัย แต่เจ้าหน้าที่วิทยาลัยอนุมัติ/ปฏิเสธเองได้หรือไม่ยังรอยืนยัน
+        institutionId: institutionId ?? collegeOrganisationId(offering.collegeCode),
         applicationType: "study",
         status: "pending",
         documents: createAdmissionDocuments(),

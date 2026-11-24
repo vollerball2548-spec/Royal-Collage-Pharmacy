@@ -27,6 +27,7 @@ describe("portal login and session migration", () => {
     ["teacher", "2323", "teacher", "/teacher/dashboard"],
     ["institution", "2323", "institution_admin", "/institution/dashboard"],
     ["officer", "2323", "royal_college_staff", "/staff/dashboard"],
+    ["college", "2323", "college_staff", "/staff/college"],
     ["president", "2323", "president", "/president/dashboard"],
     ["royalpresident", "2323", "president", "/president/dashboard"],
     ["admin", "2323", "super_admin", "/admin/dashboard"],

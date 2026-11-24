@@ -49,6 +49,7 @@ const users = [
   { id: "teacher-001", name: "อ. ภก. กิตติพงศ์ วัฒนเภสัช" },
   { id: "institution-admin-001", name: "ภก. วิชาญ อัครเวช" },
   { id: "staff-001", name: "ภญ. ปาริชาติ สุขเกษม" },
+  { id: "college-staff-vpt-001", name: "เจ้าหน้าที่วิทยาลัยเภสัชบำบัด (ตัวอย่าง)" },
   { id: "president-vpt-current", name: "ภก. รศ. ดร. ธนกฤต ศรีวิชัย" },
   { id: "super-admin", name: "System Admin" },
 ] as const;

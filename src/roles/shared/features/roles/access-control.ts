@@ -23,13 +23,14 @@ export interface PortalAccessTarget {
   resourceId?: string;
 }
 
-const AREA_POLICIES: Record<PortalArea, { role: SystemRole; routeRoot: string }> = {
-  student: { role: "student", routeRoot: "/member" },
-  teacher: { role: "teacher", routeRoot: "/teacher" },
-  institution: { role: "institution_admin", routeRoot: "/institution" },
-  staff: { role: "royal_college_staff", routeRoot: "/staff" },
-  president: { role: "president", routeRoot: "/president" },
-  admin: { role: "super_admin", routeRoot: "/admin" },
+const AREA_POLICIES: Record<PortalArea, { roles: readonly SystemRole[]; routeRoot: string }> = {
+  student: { roles: ["student"], routeRoot: "/member" },
+  teacher: { roles: ["teacher"], routeRoot: "/teacher" },
+  institution: { roles: ["institution_admin"], routeRoot: "/institution" },
+  // College Staff shares the Staff Portal shell; StaffCentralAccessBoundary limits it to college-scoped pages.
+  staff: { roles: ["royal_college_staff", "college_staff"], routeRoot: "/staff" },
+  president: { roles: ["president"], routeRoot: "/president" },
+  admin: { roles: ["super_admin"], routeRoot: "/admin" },
 };
 
 const SUPER_ADMIN_ROUTE_ALLOWLIST = [
@@ -92,7 +93,7 @@ export function canPortalSessionAccessArea(
   if (!session) return false;
   const normalizedArea = normalizeArea(area);
   const policy = AREA_POLICIES[normalizedArea];
-  return session.role === policy.role &&
+  return policy.roles.includes(session.role) &&
     isAllowedAreaPath(normalizedArea, pathname, policy.routeRoot) &&
     canPortalSessionAccessScope(session, target);
 }
