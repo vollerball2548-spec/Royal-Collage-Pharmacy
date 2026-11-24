@@ -1,0 +1,50 @@
+# Dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Test and browser artifacts
+/coverage
+/test-results
+/playwright-report
+/playwright/.cache
+/.vitest
+/.worktrees/
+
+# Next.js and build output
+/.next/
+/out/
+/build
+/.turbo
+/storybook-static
+
+# Local environment files. Commit examples only.
+.env*
+!.env.example
+!.env.*.example
+
+# Tooling, logs, and operating-system files
+.DS_Store
+.directory
+.claude/
+*.pem
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+lerna-debug.log*
+
+# Deployment metadata
+.vercel
+
+# Generated Next.js declaration
+next-env.d.ts
+
+# Regenerable Graft context graph
+graft/

@@ -1,0 +1,145 @@
+"use client";
+
+import { use, useEffect } from "react";
+import { profileData } from "@/roles/shared/data";
+import { PrintProvenance } from "@/roles/shared/components/print/PrintProvenance";
+import { OrganizationLogo } from "@/roles/shared/components/brand/OrganizationLogo";
+import { useMockDb } from "@/providers/mock-db-provider";
+
+interface PrintAdmissionPageProps {
+  searchParams: Promise<{ id?: string | string[] }>;
+}
+
+function getCollegeLabel(program: string) {
+  if (program.includes("เภสัชบำบัด")) return "วิทยาลัยเภสัชบำบัดแห่งประเทศไทย (วภท.)";
+  if (program.includes("เภสัชกรรมชุมชน")) return "วิทยาลัยเภสัชกรรมชุมชนแห่งประเทศไทย (วภช.)";
+  if (program.includes("คุ้มครองผู้บริโภค")) return "วิทยาลัยการคุ้มครองผู้บริโภคด้านยาและสุขภาพแห่งประเทศไทย";
+  if (program.includes("บริหารเภสัชกิจ")) return "วิทยาลัยการบริหารเภสัชกิจแห่งประเทศไทย";
+  return program.startsWith("วิทยาลัย") ? program : "—";
+}
+
+export default function PrintAdmissionPage({ searchParams }: PrintAdmissionPageProps) {
+  const p = profileData;
+  const params = use(searchParams);
+  const admissionId = Array.isArray(params.id) ? params.id[0] : params.id;
+  const { admissions } = useMockDb();
+  const selectedAdmission = admissions.find((admission) => admission.id === admissionId);
+  const hasProfileDetails = !selectedAdmission || selectedAdmission.license === p.personalInfo.licenseNumber;
+  const applicantName = selectedAdmission?.name ?? `${p.personalInfo.title}${p.personalInfo.firstName} ${p.personalInfo.lastName}`;
+  const applicantLicense = selectedAdmission?.license ?? p.personalInfo.licenseNumber;
+  const applicantProgram = selectedAdmission?.program ?? "วุฒิบัตรแสดงความรู้ความชำนาญในการประกอบวิชาชีพเภสัชกรรม สาขาเภสัชบำบัด";
+  const unavailableProfileValue = "—";
+
+  useEffect(() => {
+    // Automatically open print dialog when component mounts
+    const timer = window.setTimeout(() => {
+      window.print();
+    }, 500);
+
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  return (
+    <div className="portal-print-root flex min-h-screen justify-center bg-print-canvas py-10 print:bg-print-paper print:py-0">
+      {/* A4 Canvas */}
+      <div className="relative min-h-[297mm] w-[210mm] bg-print-paper px-[20mm] pt-[20mm] pb-[34mm] font-sans text-print-ink shadow-lg print:shadow-none">
+        
+        {/* Header */}
+        <div className="relative mb-8 border-b-2 border-print-ink pb-6 text-center">
+          <OrganizationLogo variant="full" className="absolute left-0 top-0 h-[32mm] w-[24mm] object-contain" />
+          {hasProfileDetails ? (
+            <img src="/somchai_profile.png" alt={`รูปผู้สมัคร ${applicantName}`} className="absolute right-0 top-0 h-[40mm] w-[30mm] border border-print-border object-cover" />
+          ) : (
+            <div className="absolute right-0 top-0 flex h-[40mm] w-[30mm] items-center justify-center border border-print-border text-[10px] text-print-subtle">
+              ไม่มีรูปผู้สมัคร
+            </div>
+          )}
+          <h1 className="text-xl font-bold mb-2">ราชวิทยาลัยเภสัชกรรมแห่งประเทศไทย</h1>
+          <h2 className="text-lg font-semibold text-print-label">ใบสมัครเข้ารับการฝึกอบรมและสอบความรู้ความชำนาญ</h2>
+        </div>
+
+        {/* 1. Personal Information */}
+        <div className="mb-6">
+          <h3 className="mb-3 border-b border-print-border pb-1 text-sm font-bold uppercase tracking-wider">1. ข้อมูลส่วนบุคคล (Personal Information)</h3>
+          <div className="grid grid-cols-12 gap-y-2 text-sm">
+            <div className="col-span-4 font-semibold text-print-label">ชื่อ - นามสกุล (TH):</div>
+            <div className="col-span-8">{applicantName}</div>
+            
+            <div className="col-span-4 font-semibold text-print-label">ชื่อ - นามสกุล (EN):</div>
+            <div className="col-span-8">{hasProfileDetails ? `${p.personalInfo.title} ${p.personalInfo.firstNameEn} ${p.personalInfo.lastNameEn}` : unavailableProfileValue}</div>
+            
+            <div className="col-span-4 font-semibold text-print-label">เลขที่ใบประกอบวิชาชีพ:</div>
+            <div className="col-span-8">
+              {applicantLicense}{hasProfileDetails ? ` (ออกเมื่อ ${p.personalInfo.licenseIssueDate})` : ""}
+            </div>
+            
+            <div className="col-span-4 font-semibold text-print-label">วัน/เดือน/ปีเกิด:</div>
+            <div className="col-span-8">{hasProfileDetails ? `${p.personalInfo.birthDate} (อายุ ${p.personalInfo.age} ปี)` : unavailableProfileValue}</div>
+            
+            <div className="col-span-4 font-semibold text-print-label">ที่อยู่ตามบัตรประชาชน:</div>
+            <div className="col-span-8">{hasProfileDetails ? "439/18 บ้านธนารักษ์ ถ.รัตนาธิเบศร์ ต.บางกระสอ อ.เมืองนนทบุรี จ.นนทบุรี 11000" : unavailableProfileValue}</div>
+
+            <div className="col-span-4 font-semibold text-print-label">ที่อยู่ปัจจุบัน/ที่ติดต่อได้:</div>
+            <div className="col-span-8">{hasProfileDetails ? p.personalInfo.address : unavailableProfileValue}</div>
+
+            <div className="col-span-4 font-semibold text-print-label">อีเมล (E-mail):</div>
+            <div className="col-span-8">{hasProfileDetails ? p.personalInfo.email : unavailableProfileValue}</div>
+            
+            <div className="col-span-4 font-semibold text-print-label">เบอร์มือถือ:</div>
+            <div className="col-span-8">{hasProfileDetails ? p.personalInfo.phone : unavailableProfileValue}</div>
+          </div>
+        </div>
+
+        {/* 2. Education */}
+        <div className="mb-6">
+          <h3 className="mb-3 border-b border-print-border pb-1 text-sm font-bold uppercase tracking-wider">2. ประวัติการศึกษา (Education Background)</h3>
+          <div className="grid grid-cols-12 gap-y-2 text-sm">
+            <div className="col-span-4 font-semibold text-print-label">สำเร็จการศึกษาจาก:</div>
+            <div className="col-span-8">{hasProfileDetails ? p.education.bachelors.institution : unavailableProfileValue}</div>
+            <div className="col-span-4 font-semibold text-print-label">ปีที่สำเร็จการศึกษา:</div>
+            <div className="col-span-8">{hasProfileDetails ? p.education.bachelors.graduationYear : unavailableProfileValue}</div>
+            <div className="col-span-4 font-semibold text-print-label">วุฒิการศึกษา:</div>
+            <div className="col-span-8">{hasProfileDetails ? p.education.bachelors.degree : unavailableProfileValue}</div>
+          </div>
+        </div>
+
+        {/* 3. Work Experience */}
+        <div className="mb-6">
+          <h3 className="mb-3 border-b border-print-border pb-1 text-sm font-bold uppercase tracking-wider">3. สถานที่ปฏิบัติงานปัจจุบัน (Current Workplace)</h3>
+          <div className="grid grid-cols-12 gap-y-2 text-sm">
+            <div className="col-span-4 font-semibold text-print-label">ชื่อหน่วยงาน:</div>
+            <div className="col-span-8">{hasProfileDetails ? p.workHistory.currentWorkplace : unavailableProfileValue}</div>
+            <div className="col-span-4 font-semibold text-print-label">ที่ตั้งหน่วยงาน:</div>
+            <div className="col-span-8">{hasProfileDetails ? "99 อาคารศูนย์การแพทย์ ถ.พหลโยธิน แขวงจตุจักร เขตจตุจักร กรุงเทพมหานคร 10900" : unavailableProfileValue}</div>
+            <div className="col-span-4 font-semibold text-print-label">ตำแหน่ง/ระดับ:</div>
+            <div className="col-span-8">{hasProfileDetails ? `${p.workHistory.position} (${p.workHistory.level})` : unavailableProfileValue}</div>
+            <div className="col-span-4 font-semibold text-print-label">เบอร์โทรศัพท์ที่ทำงาน:</div>
+            <div className="col-span-8">{hasProfileDetails ? p.workHistory.workplacePhone : unavailableProfileValue}</div>
+          </div>
+        </div>
+
+        {/* 4. Admission Details */}
+        <div className="mb-6">
+          <h3 className="mb-3 border-b border-print-border pb-1 text-sm font-bold uppercase tracking-wider">4. ความประสงค์ในการสมัคร (Application Intent)</h3>
+          <div className="grid grid-cols-12 gap-y-2 text-sm">
+            <div className="col-span-4 font-semibold text-print-label">สมัครหลักสูตร:</div>
+            <div className="col-span-8 font-bold">{applicantProgram}</div>
+            <div className="col-span-4 font-semibold text-print-label">วิทยาลัยที่สังกัด:</div>
+            <div className="col-span-8">{getCollegeLabel(applicantProgram)}</div>
+          </div>
+        </div>
+
+        {/* Certification Clause */}
+        <div className="mt-12 text-sm text-center">
+          <p className="mb-8">ข้าพเจ้าขอรับรองว่าข้อความข้างต้นเป็นความจริงทุกประการ และมีคุณสมบัติครบถ้วนตามที่กำหนด</p>
+          <div className="mb-2 inline-block w-48 border-b border-print-ink"></div>
+          <div>({applicantName})</div>
+          <div className="mt-1 text-print-muted">ผู้สมัคร</div>
+          <div className="mt-1 text-print-muted">วันที่ {selectedAdmission?.date ?? "........ / .................... / ............"}</div>
+        </div>
+
+        <PrintProvenance documentTitle={`ใบสมัครเข้ารับการฝึกอบรมและสอบความรู้ความชำนาญ${selectedAdmission ? ` (${selectedAdmission.id})` : ""}`} />
+      </div>
+    </div>
+  );
+}

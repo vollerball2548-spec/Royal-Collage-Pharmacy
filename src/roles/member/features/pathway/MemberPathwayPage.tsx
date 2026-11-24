@@ -1,0 +1,665 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { Tooltip } from "radix-ui";
+
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
+import { PageShell } from "@/roles/shared/components/layout/PageShell";
+import { WorkspaceHeader } from "@/roles/shared/components/workspace/WorkspacePrimitives";
+
+import {
+  curriculumForPathwayStage,
+  pharmacotherapyPathwayStages,
+  pharmacotherapyPathwaySummary,
+  type PharmacotherapyPathwayStage,
+  type PathwayRequirement,
+  type StageCurriculumItem,
+  type PathwayStageStatus,
+} from "./pharmacotherapy-pathway";
+
+const stageStatusConfig = {
+  completed: {
+    label: "ผ่านแล้ว",
+    badge: "success" as const,
+    node: "border-success bg-success text-success-foreground",
+    stone: "border-success-border bg-success-soft/55",
+  },
+  current: {
+    label: "กำลังศึกษา",
+    badge: "brand" as const,
+    node:
+      "border-primary bg-primary text-primary-foreground ring-4 ring-brand-border shadow-app-float",
+    stone: "border-brand-border bg-brand-soft",
+  },
+  upcoming: {
+    label: "ยังไม่เริ่ม",
+    badge: "neutral" as const,
+    node: "border-border bg-card text-muted-foreground",
+    stone: "border-border bg-card",
+  },
+  locked: {
+    label: "ยังไม่ปลดล็อก",
+    badge: "warning" as const,
+    node: "border-warning-border bg-warning-soft text-warning-on-soft",
+    stone: "border-warning-border bg-warning-soft/50",
+  },
+} satisfies Record<
+  PathwayStageStatus,
+  {
+    label: string;
+    badge: "brand" | "success" | "info" | "neutral" | "warning";
+    node: string;
+    stone: string;
+  }
+>;
+
+const requirementStatusConfig = {
+  met: {
+    icon: "check_circle",
+    label: "ผ่านแล้ว",
+    className: "text-success",
+  },
+  in_progress: {
+    icon: "pending",
+    label: "กำลังดำเนินการ",
+    className: "text-info",
+  },
+  not_started: {
+    icon: "radio_button_unchecked",
+    label: "ยังไม่เริ่ม",
+    className: "text-muted-foreground",
+  },
+} as const;
+
+const kindLabels = {
+  entry: "จุดเริ่มต้น",
+  year: "แผนการฝึกอบรม",
+  gate: "เกณฑ์ผ่าน",
+  completion: "จุดหมาย",
+} as const;
+
+const pathwayStagePositions = [
+  { x: 9, className: "lg:left-[9%] lg:top-[22%]" },
+  { x: 29.5, className: "lg:left-[29.5%] lg:top-[22%]" },
+  { x: 50, className: "lg:left-1/2 lg:top-[22%]" },
+  { x: 70.5, className: "lg:left-[70.5%] lg:top-[22%]" },
+  { x: 91, className: "lg:left-[91%] lg:top-[22%]" },
+  { x: 91, className: "lg:left-[91%] lg:top-[68%]" },
+  { x: 64, className: "lg:left-[64%] lg:top-[68%]" },
+  { x: 36, className: "lg:left-[36%] lg:top-[68%]" },
+  { x: 9, className: "lg:left-[9%] lg:top-[68%]" },
+] as const;
+
+const pathwayTurnControlX = 1020;
+const pathwayTrackPath = `M 90 66 H 910 C ${pathwayTurnControlX} 66 ${pathwayTurnControlX} 204 910 204 H 90`;
+
+function getPathwayProgressPath(stageIndex: number) {
+  const lastIndex = pathwayStagePositions.length - 1;
+  const safeIndex = Math.min(Math.max(stageIndex, 0), lastIndex);
+  const target = pathwayStagePositions[safeIndex];
+
+  if (safeIndex <= 4) {
+    return `M 90 66 H ${target.x * 10}`;
+  }
+
+  return `M 90 66 H 910 C ${pathwayTurnControlX} 66 ${pathwayTurnControlX} 204 910 204 H ${target.x * 10}`;
+}
+
+function RequirementRow({ requirement }: { requirement: PathwayRequirement }) {
+  const config = requirementStatusConfig[requirement.status];
+
+  return (
+    <li className="flex min-h-14 items-start gap-3 rounded-xl border border-border bg-surface-container-low p-3">
+      <span
+        aria-hidden="true"
+        className={cn("material-symbols-outlined mt-0.5 shrink-0 text-xl", config.className)}
+      >
+        {config.icon}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="font-medium text-foreground">{requirement.label}</p>
+        {requirement.detail !== config.label ? (
+          <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+            {requirement.detail}
+          </p>
+        ) : null}
+      </div>
+      <span className={cn("shrink-0 text-xs font-medium", config.className)}>
+        {config.label}
+      </span>
+    </li>
+  );
+}
+
+function CurriculumItemCard({ item }: { item: StageCurriculumItem }) {
+  const isSplitAcrossYears = item.allocatedCredits !== item.totalCredits;
+
+  return (
+    <li className="rounded-2xl border border-border bg-surface-container-low p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-lg border border-border bg-card px-2 py-1 font-mono text-xs font-semibold text-primary">
+            {item.code}
+          </span>
+          <Badge variant={item.requirementMode === "choose_one" ? "info" : "neutral"}>
+            {item.requirementMode === "choose_one" ? "เลือก 1 สาขา" : "ต้องเรียน"}
+          </Badge>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="font-bold tabular-nums text-foreground">
+            {item.allocatedCredits} หน่วยกิต
+          </p>
+          {isSplitAcrossYears ? (
+            <p className="text-[11px] text-muted-foreground">จากทั้งหมด {item.totalCredits} หน่วยกิต</p>
+          ) : null}
+        </div>
+      </div>
+
+      <h4 className="mt-3 font-semibold leading-snug text-foreground">{item.titleTh}</h4>
+      <details className="group mt-3 border-t border-border pt-3">
+        <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 rounded-lg px-2 text-sm font-semibold text-primary outline-none hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
+          <span>ดูรายละเอียด</span>
+          <span
+            aria-hidden="true"
+            className="material-symbols-outlined text-xl text-muted-foreground transition-transform group-open:rotate-180 motion-reduce:transition-none"
+          >
+            expand_more
+          </span>
+        </summary>
+        <div className="space-y-3 px-2 pb-1 pt-3">
+          <p className="text-xs leading-relaxed text-muted-foreground">{item.titleEn}</p>
+          <p className="text-sm leading-relaxed text-foreground/80">{item.description}</p>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <span>{item.officialCategory}</span>
+            <span>{item.creditBreakdown}</span>
+            <span>{item.allocatedHours ?? item.hours}</span>
+          </div>
+
+          {item.note ? (
+            <p className="rounded-xl border border-info-border bg-info-soft px-3 py-2 text-xs leading-relaxed text-info-on-soft">
+              {item.note}
+            </p>
+          ) : null}
+
+          {item.options?.length ? (
+            <div className="rounded-xl border border-border bg-card">
+              <p className="px-3 py-2.5 text-sm font-semibold text-foreground">
+                เลือกฝึก 1 ด้านจาก {item.options.length} ด้าน
+              </p>
+              <ul className="grid gap-2 border-t border-border p-3 sm:grid-cols-2">
+                {item.options.map((option) => (
+                  <li key={option.code} className="rounded-lg bg-surface-container-low px-3 py-2">
+                    <p className="font-mono text-xs font-semibold text-primary">{option.code}</p>
+                    <p className="mt-1 text-sm font-medium text-foreground">{option.titleTh}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{option.titleEn}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
+      </details>
+    </li>
+  );
+}
+
+function StageCurriculumSection({ stage }: { stage: PharmacotherapyPathwayStage }) {
+  const curriculum = curriculumForPathwayStage(stage.id);
+  if (curriculum.length === 0) return null;
+
+  const allocatedCredits = curriculum.reduce(
+    (total, item) => total + item.allocatedCredits,
+    0,
+  );
+
+  return (
+    <section className="border-t border-border pt-5 lg:col-span-2" aria-labelledby="stage-curriculum-title">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h3 id="stage-curriculum-title" className="text-sm font-semibold text-foreground">
+            รายวิชาในขั้นนี้
+          </h3>
+        </div>
+        <p className="text-sm font-semibold tabular-nums text-foreground">
+          {curriculum.length} {curriculum.length === 1 ? "รายการ" : "รายวิชา"} · {allocatedCredits} หน่วยกิต
+        </p>
+      </div>
+
+      <ul
+        aria-label={`รายวิชาในขั้นนี้ ${stage.shortLabel}`}
+        className="mt-4 grid gap-3 xl:grid-cols-2"
+      >
+        {curriculum.map((item) => (
+          <CurriculumItemCard key={`${stage.id}-${item.componentId}`} item={item} />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function PathwayStagePreview({
+  stage,
+  order,
+}: {
+  stage: PharmacotherapyPathwayStage;
+  order: number;
+}) {
+  const config = stageStatusConfig[stage.status];
+  const completedRequirements = stage.requirements.filter(
+    (requirement) => requirement.status === "met",
+  ).length;
+
+  return (
+    <Tooltip.Portal>
+      <Tooltip.Content
+        side="top"
+        sideOffset={16}
+        collisionPadding={16}
+        aria-label={`รายละเอียดย่อ ${stage.title}`}
+        className="relative z-50 hidden w-80 origin-(--radix-tooltip-content-transform-origin) rounded-2xl border border-brand-border bg-popover p-4 text-left text-popover-foreground shadow-app-float ring-1 ring-foreground/5 duration-150 data-[state=delayed-open]:animate-in data-[state=delayed-open]:fade-in-0 data-[state=delayed-open]:zoom-in-95 data-[state=instant-open]:animate-in data-[state=instant-open]:fade-in-0 data-[state=instant-open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 motion-reduce:animate-none md:block"
+      >
+        <span
+          aria-hidden="true"
+          className="absolute inset-x-4 top-0 h-1 rounded-b-full bg-primary"
+        />
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-xs font-semibold text-primary">
+            ขั้นที่ {order}
+          </span>
+          <Badge variant={config.badge}>{config.label}</Badge>
+        </div>
+
+        <p className="mt-3 text-balance font-heading text-base font-bold leading-snug text-foreground">
+          {stage.title}
+        </p>
+
+        {stage.status === "current" ? (
+          <div className="mt-3 flex items-center gap-2 rounded-xl border border-brand-border bg-brand-soft px-3 py-2 text-sm font-semibold text-brand-on-soft">
+            <span aria-hidden="true" className="material-symbols-outlined text-lg">
+              my_location
+            </span>
+            ตำแหน่งปัจจุบันของคุณ
+          </div>
+        ) : null}
+
+        <dl className="mt-3 grid grid-cols-2 gap-2">
+          <div className="rounded-xl border border-border bg-surface-container-low px-3 py-2.5">
+            <dt className="text-[11px] text-muted-foreground">หน่วยกิต</dt>
+            <dd className="mt-0.5 font-bold tabular-nums text-foreground">
+              {stage.credits
+                ? `${stage.credits.earned} / ${stage.credits.planned}`
+                : "ไม่ระบุ"}
+            </dd>
+          </div>
+          <div className="rounded-xl border border-border bg-surface-container-low px-3 py-2.5">
+            <dt className="text-[11px] text-muted-foreground">เงื่อนไขที่ผ่าน</dt>
+            <dd className="mt-0.5 font-bold tabular-nums text-foreground">
+              {completedRequirements} / {stage.requirements.length}
+            </dd>
+          </div>
+        </dl>
+        <Tooltip.Arrow className="fill-popover stroke-brand-border" width={16} height={8} />
+      </Tooltip.Content>
+    </Tooltip.Portal>
+  );
+}
+
+function PathwayRoadmap({
+  selectedStageId,
+  onSelect,
+}: {
+  selectedStageId: string;
+  onSelect: (stageId: string) => void;
+}) {
+  const currentStageIndex = pharmacotherapyPathwayStages.findIndex(
+    (stage) => stage.status === "current",
+  );
+
+  return (
+    <Tooltip.Provider delayDuration={180} skipDelayDuration={100}>
+      <div className="overflow-x-auto px-1 pb-3 pt-1">
+        <ol
+          aria-label="ลำดับเส้นทางการเรียนเภสัชบำบัด 4 ปี"
+          className="relative grid gap-3 lg:block lg:h-[22rem] lg:min-w-[46rem]"
+        >
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 1000 300"
+            preserveAspectRatio="none"
+            className="pointer-events-none absolute inset-0 hidden h-full w-full overflow-visible lg:block"
+          >
+            <path
+              d={pathwayTrackPath}
+              fill="none"
+              stroke="var(--border)"
+              strokeWidth="6"
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
+            <path
+              d={getPathwayProgressPath(currentStageIndex)}
+              fill="none"
+              stroke="var(--primary)"
+              strokeWidth="6"
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          </svg>
+
+          {pharmacotherapyPathwayStages.map((stage, index) => {
+            const config = stageStatusConfig[stage.status];
+            const selected = selectedStageId === stage.id;
+            const position = pathwayStagePositions[index];
+
+            return (
+              <li
+                key={stage.id}
+                className={cn(
+                  "relative lg:absolute lg:z-10 lg:w-32 lg:-translate-x-1/2 lg:-translate-y-7",
+                  position.className,
+                  index < pharmacotherapyPathwayStages.length - 1 &&
+                    "after:absolute after:-bottom-3 after:left-9 after:top-[4.5rem] after:w-0.5 after:bg-border after:content-[''] lg:after:hidden",
+                )}
+              >
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <button
+                      type="button"
+                      aria-current={stage.status === "current" ? "step" : undefined}
+                      aria-pressed={selected}
+                      aria-label={`${stage.shortLabel}: ${stage.title}, ${config.label}${stage.status === "current" ? ", ตำแหน่งปัจจุบัน" : ""}`}
+                      data-current={stage.status === "current" ? "true" : undefined}
+                      onClick={() => onSelect(stage.id)}
+                      className={cn(
+                        "group/stone relative z-10 grid min-h-[5.75rem] w-full grid-cols-[3.25rem_1fr] items-center gap-3 overflow-hidden rounded-[1.4rem] border p-3 text-left shadow-app-card outline-none transition-[transform,box-shadow,border-color,background-color] duration-150 hover:-translate-y-0.5 hover:shadow-app-float focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:scale-[0.96] motion-reduce:transform-none motion-reduce:transition-none lg:flex lg:min-h-0 lg:w-32 lg:grid-cols-none lg:flex-col lg:gap-1.5 lg:overflow-visible lg:rounded-2xl lg:border-0 lg:bg-transparent lg:p-0 lg:text-center lg:shadow-none lg:ring-0 lg:hover:shadow-none lg:focus-visible:ring-2 lg:focus-visible:ring-offset-4",
+                        config.stone,
+                        selected && "border-primary ring-2 ring-primary/20 lg:border-0 lg:ring-0",
+                      )}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-foreground/15 to-transparent lg:hidden"
+                      />
+                      {stage.status === "current" ? (
+                        <span className="absolute left-1/2 top-0 hidden -translate-x-1/2 -translate-y-[calc(100%+0.65rem)] items-center gap-1 whitespace-nowrap rounded-full border border-brand-border bg-popover px-2.5 py-1 text-xs font-semibold text-brand-on-soft shadow-app-card lg:inline-flex">
+                          <span aria-hidden="true" className="material-symbols-outlined text-base">
+                            my_location
+                          </span>
+                          คุณอยู่ที่นี่
+                        </span>
+                      ) : null}
+                      <span className="absolute right-3 top-2.5 rounded-full bg-card/80 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-muted-foreground ring-1 ring-foreground/5 backdrop-blur-sm lg:-right-1 lg:-top-1">
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          "flex size-12 shrink-0 items-center justify-center rounded-[1.05rem] border-2 shadow-app-card transition-transform duration-150 group-hover/stone:scale-105 motion-reduce:transform-none lg:size-14 lg:rounded-full",
+                          config.node,
+                          stage.status === "current" && "lg:-mt-1 lg:size-16",
+                          selected && stage.status !== "current" && "lg:ring-4 lg:ring-primary/20",
+                        )}
+                      >
+                        <span className="material-symbols-outlined text-xl lg:text-2xl">
+                          {stage.icon}
+                        </span>
+                      </span>
+
+                      <span className="min-w-0 pr-7 lg:flex lg:w-32 lg:flex-col lg:items-center lg:pr-0">
+                        <span className="block text-xs font-semibold text-primary">
+                          {stage.shortLabel}
+                        </span>
+                        <span className="mt-0.5 block text-sm font-semibold leading-snug text-foreground lg:line-clamp-2">
+                          {stage.title}
+                        </span>
+                        {stage.status === "current" ? (
+                          <span className="mt-1.5 inline-flex w-fit items-center gap-1 rounded-full border border-brand-border bg-popover px-2 py-0.5 text-xs font-semibold text-brand-on-soft lg:hidden">
+                            <span aria-hidden="true" className="material-symbols-outlined text-sm">
+                              my_location
+                            </span>
+                            คุณอยู่ที่นี่
+                          </span>
+                        ) : null}
+                        <Badge variant={config.badge} className="mt-1.5">
+                          {config.label}
+                        </Badge>
+                      </span>
+                    </button>
+                  </Tooltip.Trigger>
+                  <PathwayStagePreview stage={stage} order={index + 1} />
+                </Tooltip.Root>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+    </Tooltip.Provider>
+  );
+}
+
+export default function MemberPathwayPage() {
+  const currentStage = pharmacotherapyPathwayStages.find(
+    (stage) => stage.status === "current",
+  );
+  const [selectedStageId, setSelectedStageId] = useState(
+    currentStage?.id ?? pharmacotherapyPathwayStages[0].id,
+  );
+
+  const selectedStage = useMemo(
+    () =>
+      pharmacotherapyPathwayStages.find((stage) => stage.id === selectedStageId) ??
+      pharmacotherapyPathwayStages[0],
+    [selectedStageId],
+  );
+  const selectedStatus = stageStatusConfig[selectedStage.status];
+  const currentStageOrder = Math.max(
+    pharmacotherapyPathwayStages.findIndex((stage) => stage.id === currentStage?.id) + 1,
+    1,
+  );
+  const overallPercent = Math.round(
+    (pharmacotherapyPathwaySummary.earnedCredits /
+      pharmacotherapyPathwaySummary.totalCredits) *
+      100,
+  );
+
+  return (
+    <PageShell size="app" className="space-y-6">
+      <WorkspaceHeader
+        eyebrow="วุฒิบัตรเภสัชบำบัด"
+        title="เส้นทางการเรียนเภสัชบำบัด 4 ปี"
+        description="ดูความก้าวหน้า เงื่อนไข และรายวิชาในแต่ละปี"
+      />
+
+      <Card className="border-border">
+        <CardContent className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(8rem,0.6fr))] lg:items-center">
+          <div className="min-w-0 lg:pr-5">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="info">กำลังศึกษา</Badge>
+              <span className="text-xs text-muted-foreground">ความคืบหน้าหลักสูตร</span>
+            </div>
+            <h2 className="mt-3 font-heading text-xl font-bold text-foreground">
+              {currentStage?.title ?? "สถานะการฝึกอบรมปัจจุบัน"}
+            </h2>
+            <div className="mt-3 flex items-center gap-3">
+              <Progress
+                aria-label="ความคืบหน้าหน่วยกิตรวม"
+                value={pharmacotherapyPathwaySummary.earnedCredits}
+                max={pharmacotherapyPathwaySummary.totalCredits}
+                tone="brand"
+                className="h-2.5 flex-1"
+              />
+              <span className="shrink-0 text-sm font-bold tabular-nums text-foreground">
+                {overallPercent}%
+              </span>
+            </div>
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+              ขั้นถัดไป: {pharmacotherapyPathwaySummary.nextAction}
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-border bg-surface-container-low p-4">
+            <p className="text-xs text-muted-foreground">ปีการฝึกอบรม</p>
+            <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">
+              {pharmacotherapyPathwaySummary.currentYear}
+              <span className="ml-1 text-sm font-medium text-muted-foreground">
+                จาก {pharmacotherapyPathwaySummary.yearCount}
+              </span>
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-border bg-surface-container-low p-4">
+            <p className="text-xs text-muted-foreground">หน่วยกิตปีปัจจุบัน</p>
+            <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">
+              {pharmacotherapyPathwaySummary.currentYearCredits}
+              <span className="ml-1 text-sm font-medium text-muted-foreground">
+                / {pharmacotherapyPathwaySummary.currentYearPlannedCredits}
+              </span>
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-border bg-surface-container-low p-4">
+            <p className="text-xs text-muted-foreground">หน่วยกิตสะสม</p>
+            <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">
+              {pharmacotherapyPathwaySummary.earnedCredits}
+              <span className="ml-1 text-sm font-medium text-muted-foreground">
+                / {pharmacotherapyPathwaySummary.totalCredits}
+              </span>
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-border">
+        <CardHeader className="gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+          <div>
+            <CardTitle className="text-balance text-lg font-bold">
+              แผนการเรียนและจุดประเมิน
+            </CardTitle>
+            <CardDescription className="mt-1 text-pretty">
+              เลือกแต่ละขั้นเพื่อดูเงื่อนไขและรายวิชา
+            </CardDescription>
+          </div>
+          {currentStage ? (
+            <div
+              role="group"
+              aria-label={`ตำแหน่งปัจจุบัน ขั้นที่ ${currentStageOrder} จาก ${pharmacotherapyPathwayStages.length}`}
+              className="flex min-w-0 items-center gap-3 rounded-xl border border-brand-border bg-brand-soft px-3 py-2.5 text-brand-on-soft sm:max-w-72"
+            >
+              <span
+                aria-hidden="true"
+                className="material-symbols-outlined flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-xl text-primary-foreground"
+              >
+                my_location
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-medium">
+                  ตำแหน่งปัจจุบัน · ขั้นที่ {currentStageOrder} จาก{" "}
+                  {pharmacotherapyPathwayStages.length}
+                </p>
+                <p className="mt-0.5 truncate text-sm font-bold">{currentStage.title}</p>
+              </div>
+            </div>
+          ) : null}
+        </CardHeader>
+        <CardContent>
+          <PathwayRoadmap selectedStageId={selectedStageId} onSelect={setSelectedStageId} />
+        </CardContent>
+      </Card>
+
+      <section aria-live="polite" aria-labelledby="pathway-stage-detail-title">
+        <Card className="border-border">
+          <CardHeader className="border-b border-border pb-5 lg:grid-cols-[1fr_auto]">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="brand">{kindLabels[selectedStage.kind]}</Badge>
+                <Badge variant={selectedStatus.badge}>{selectedStatus.label}</Badge>
+              </div>
+              <h2
+                id="pathway-stage-detail-title"
+                className="mt-3 font-heading text-xl font-bold text-foreground"
+              >
+                {selectedStage.title}
+              </h2>
+              <CardDescription className="mt-1 leading-relaxed">
+                {selectedStage.description}
+              </CardDescription>
+            </div>
+            <span
+              aria-hidden="true"
+              className={cn(
+                "flex size-12 items-center justify-center rounded-full border-2",
+                selectedStatus.node,
+              )}
+            >
+              <span className="material-symbols-outlined text-2xl">{selectedStage.icon}</span>
+            </span>
+          </CardHeader>
+
+          <CardContent className="grid gap-6 lg:grid-cols-[minmax(16rem,0.8fr)_minmax(0,1.2fr)]">
+            <div className="space-y-4">
+              {selectedStage.credits ? (
+                <div className="rounded-xl border border-border bg-surface-container-low p-4">
+                  <div className="flex items-end justify-between gap-3">
+                    <div>
+                      <p className="text-xs text-muted-foreground">หน่วยกิตในขั้นนี้</p>
+                      <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">
+                        {selectedStage.credits.earned}
+                        <span className="ml-1 text-sm font-medium text-muted-foreground">
+                          / {selectedStage.credits.planned}
+                        </span>
+                      </p>
+                    </div>
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {Math.round(
+                        (selectedStage.credits.earned / selectedStage.credits.planned) * 100,
+                      )}%
+                    </span>
+                  </div>
+                  <Progress
+                    aria-label={`ความคืบหน้าหน่วยกิต ${selectedStage.title}`}
+                    value={selectedStage.credits.earned}
+                    max={selectedStage.credits.planned}
+                    tone={selectedStage.status === "completed" ? "success" : "brand"}
+                    className="mt-3 h-2"
+                  />
+                </div>
+              ) : null}
+
+              {selectedStage.unlocks ? (
+                <div className="flex items-start gap-2 rounded-xl border border-brand-border bg-brand-soft p-3 text-sm text-brand-on-soft">
+                  <span aria-hidden="true" className="material-symbols-outlined mt-0.5 text-lg">
+                    key
+                  </span>
+                  <p className="leading-relaxed">
+                    <span className="font-semibold">ขั้นถัดไป:</span> {selectedStage.unlocks}
+                  </p>
+                </div>
+              ) : null}
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">เงื่อนไขและสถานะ</h3>
+              <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                {selectedStage.requirements.map((requirement) => (
+                  <RequirementRow key={`${selectedStage.id}-${requirement.label}`} requirement={requirement} />
+                ))}
+              </ul>
+            </div>
+
+            <StageCurriculumSection stage={selectedStage} />
+          </CardContent>
+        </Card>
+      </section>
+    </PageShell>
+  );
+}
