@@ -6,7 +6,9 @@ import { templateForApplication } from "@/domain/applications/catalog";
 import { applicationKindLabel, applicationStatusMeta, documentReviewMeta } from "@/domain/applications/model";
 import { isSignatureValue, isVisible } from "@/domain/forms/evaluate";
 import type { FieldDef, FieldValue } from "@/domain/forms/schema";
-import { displayValue } from "./FormRenderer";
+import { displayValue, fieldWidth } from "./FormRenderer";
+
+const printWidth = { quarter: "col-span-3", third: "col-span-4", half: "col-span-6", full: "col-span-12" } as const;
 import { useApplicationActor, useApplications } from "./use-applications";
 
 function RepeaterTable({ field, value }: { field: Extract<FieldDef, { type: "repeater" }>; value: FieldValue }) {
@@ -62,14 +64,24 @@ export function ApplicationPrintPage({ id }: { id: string }) {
         {template.steps.map((step, index) => (
           <section key={step.id} className="mb-4 break-inside-avoid">
             <p className="mb-1 font-semibold">{index + 1}. {step.title}</p>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-1">
-              {step.fields.filter((field) => isVisible(field, application.answers, application.context) && field.type !== "file" && field.type !== "signature").map((field) => (
-                <div key={field.id} className={field.type === "repeater" || field.wide ? "col-span-2" : undefined}>
-                  <span className="text-print-label">{field.label}: </span>
-                  {field.type === "repeater" ? <RepeaterTable field={field} value={application.answers[field.id]} /> : <span className="border-b border-dotted border-print-border">{displayValue(field, application.answers[field.id])}</span>}
+            {[undefined, ...(step.groups ?? [])].map((group) => {
+              const fields = step.fields.filter((field) => (group ? field.group === group.id : !step.groups?.some((item) => item.id === field.group)) &&
+                isVisible(field, application.answers, application.context) && field.type !== "file" && field.type !== "signature");
+              if (fields.length === 0) return null;
+              return (
+                <div key={group?.id ?? "ungrouped"} className="mb-2">
+                  {group ? <p className="mb-0.5 font-medium underline">{group.title}</p> : null}
+                  <div className="grid grid-cols-12 gap-x-4 gap-y-1">
+                    {fields.map((field) => (
+                      <div key={field.id} className={printWidth[fieldWidth(field)]}>
+                        <span className="text-print-label">{field.label}: </span>
+                        {field.type === "repeater" ? <RepeaterTable field={field} value={application.answers[field.id]} /> : <span className="border-b border-dotted border-print-border">{displayValue(field, application.answers[field.id])}</span>}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </section>
         ))}
 

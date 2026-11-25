@@ -48,6 +48,10 @@ function isEmpty(value: FieldValue) {
   return false;
 }
 
+function nameOf(field: FieldDef) {
+  return field.errorLabel ?? field.label;
+}
+
 function fieldErrors(field: FieldDef, value: FieldValue, answers: FormAnswers, ctx: FormContext, prefix = ""): FormError[] {
   const id = `${prefix}${field.id}`;
   if (!isVisible(field, answers, ctx)) return [];
@@ -55,7 +59,7 @@ function fieldErrors(field: FieldDef, value: FieldValue, answers: FormAnswers, c
   if (field.type === "signature") {
     if (!required && !value) return [];
     const expected = String(answers[field.nameField] ?? "").trim();
-    if (!isSignatureValue(value) || !value.accepted) return [{ fieldId: id, message: `กรุณายืนยัน "${field.label}"` }];
+    if (!isSignatureValue(value) || !value.accepted) return [{ fieldId: id, message: `กรุณายืนยัน "${nameOf(field)}"` }];
     if (value.signedName.trim() !== expected) return [{ fieldId: id, message: `กรุณาพิมพ์ชื่อให้ตรงกับ "${expected}"` }];
     return [];
   }
@@ -63,7 +67,7 @@ function fieldErrors(field: FieldDef, value: FieldValue, answers: FormAnswers, c
     const rows = Array.isArray(value) ? value as Record<string, unknown>[] : [];
     const errors: FormError[] = [];
     const min = field.minItems ?? (required ? 1 : 0);
-    if (rows.length < min) errors.push({ fieldId: id, message: `${field.label}: ต้องมีอย่างน้อย ${min} รายการ` });
+    if (rows.length < min) errors.push({ fieldId: id, message: `${nameOf(field)}: ต้องมีอย่างน้อย ${min} รายการ` });
     rows.forEach((row, index) => {
       field.fields.forEach((child) => {
         errors.push(...fieldErrors(child, row[child.id] as FieldValue, { ...answers, ...(row as FormAnswers) }, ctx, `${id}.${index}.`));
@@ -71,23 +75,23 @@ function fieldErrors(field: FieldDef, value: FieldValue, answers: FormAnswers, c
     });
     return errors;
   }
-  if (isEmpty(value)) return required ? [{ fieldId: id, message: `กรุณากรอก "${field.label}"` }] : [];
+  if (isEmpty(value)) return required ? [{ fieldId: id, message: `กรุณากรอก "${nameOf(field)}"` }] : [];
   if (field.type === "number") {
     const number = typeof value === "number" ? value : Number(value);
-    if (!Number.isFinite(number)) return [{ fieldId: id, message: `"${field.label}" ต้องเป็นตัวเลข` }];
-    if (field.integer && !Number.isInteger(number)) return [{ fieldId: id, message: `"${field.label}" ต้องเป็นจำนวนเต็ม` }];
-    if (field.min !== undefined && number < field.min) return [{ fieldId: id, message: `"${field.label}" ต้องไม่น้อยกว่า ${field.min}` }];
+    if (!Number.isFinite(number)) return [{ fieldId: id, message: `"${nameOf(field)}" ต้องเป็นตัวเลข` }];
+    if (field.integer && !Number.isInteger(number)) return [{ fieldId: id, message: `"${nameOf(field)}" ต้องเป็นจำนวนเต็ม` }];
+    if (field.min !== undefined && number < field.min) return [{ fieldId: id, message: `"${nameOf(field)}" ต้องไม่น้อยกว่า ${field.min}` }];
   }
   if ((field.type === "text" || field.type === "textarea") && field.pattern && typeof value === "string" && !new RegExp(field.pattern.regex).test(value.trim())) {
     return [{ fieldId: id, message: field.pattern.message }];
   }
   if ((field.type === "select" || field.type === "radio") && !field.options.some((option) => option.value === value)) {
-    return [{ fieldId: id, message: `"${field.label}" ไม่อยู่ในตัวเลือก` }];
+    return [{ fieldId: id, message: `"${nameOf(field)}" ไม่อยู่ในตัวเลือก` }];
   }
   if (field.type === "checkbox" && field.options && Array.isArray(value) && field.minSelected && value.length < field.minSelected) {
-    return [{ fieldId: id, message: `"${field.label}" ต้องเลือกอย่างน้อย ${field.minSelected} ข้อ` }];
+    return [{ fieldId: id, message: `"${nameOf(field)}" ต้องเลือกอย่างน้อย ${field.minSelected} ข้อ` }];
   }
-  if (field.type === "file" && !isFileValue(value)) return [{ fieldId: id, message: `กรุณาแนบ "${field.label}"` }];
+  if (field.type === "file" && !isFileValue(value)) return [{ fieldId: id, message: `กรุณาแนบ "${nameOf(field)}"` }];
   return [];
 }
 

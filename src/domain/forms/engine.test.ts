@@ -91,6 +91,18 @@ describe("form templates", () => {
     expect(ids).not.toContain("fullName");
   });
 
+  it("groups the approval form like the paper form and keeps error messages specific", () => {
+    const step = approvalExamTemplate("วภท.").steps[0];
+    const groupIds = new Set(step.groups?.map((group) => group.id));
+    expect([...groupIds]).toEqual(["program", "person", "work", "contact"]);
+    expect(step.fields.every((field) => field.group && groupIds.has(field.group))).toBe(true);
+    expect(step.fields.find((field) => field.id === "contactHouseNo")?.label).toBe("เลขที่");
+    const errors = validateStep(approvalExamTemplate("วภท."), "personal", {}, {});
+    expect(errors.find((error) => error.fieldId === "contactHouseNo")?.message).toMatch(/ที่อยู่ปัจจุบันที่ติดต่อได้: เลขที่/);
+    const copy = step.groups?.find((group) => group.id === "contact")?.copy;
+    expect(copy?.from.contactPostalCode).toBe("workplacePostalCode");
+  });
+
   it("offers only the program's own track and subjects on the short-course form", () => {
     const template = shortCourseTemplate({ tracks: ["credit_bank"], subjects: [{ value: "CPAT201", label: "CPAT201" }] });
     const course = template.steps.find((step) => step.id === "course")!;

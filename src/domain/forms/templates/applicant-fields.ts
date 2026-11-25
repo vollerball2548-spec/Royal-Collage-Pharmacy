@@ -34,16 +34,20 @@ export const lockedIdentityFields: readonly FieldDef[] = [
   { id: "licenseNumber", type: "text", label: "เลขที่ใบอนุญาตประกอบวิชาชีพเภสัชกรรม", prefill: "licenseNumber", locked: true, required: true },
 ];
 
-export function addressFields(prefix: string, label: string): TextField[] {
+/** ช่องที่อยู่แบบฟอร์มกระดาษ: ชื่อช่องสั้น จัดหลายช่องต่อแถว ข้อความแจ้งเตือนยังระบุว่าเป็นที่อยู่ใด */
+export function addressFields(prefix: string, label: string, group: string): TextField[] {
+  const field = (id: string, short: string, width: TextField["width"], extra: Partial<TextField> = {}): TextField => ({
+    id: `${prefix}${id}`, type: "text", label: short, errorLabel: `${label}: ${short}`, width, group, ...extra,
+  });
   return [
-    { id: `${prefix}HouseNo`, type: "text", label: `${label}: เลขที่`, required: true },
-    { id: `${prefix}Moo`, type: "text", label: `${label}: หมู่ที่` },
-    { id: `${prefix}Soi`, type: "text", label: `${label}: ตรอก/ซอย` },
-    { id: `${prefix}Road`, type: "text", label: `${label}: ถนน` },
-    { id: `${prefix}Subdistrict`, type: "text", label: `${label}: ตำบล/แขวง`, required: true },
-    { id: `${prefix}District`, type: "text", label: `${label}: อำเภอ/เขต`, required: true },
-    { id: `${prefix}Province`, type: "text", label: `${label}: จังหวัด`, required: true },
-    { id: `${prefix}PostalCode`, type: "text", label: `${label}: รหัสไปรษณีย์`, required: true, pattern: POSTAL_PATTERN, maxLength: 5 },
+    field("HouseNo", "เลขที่", "quarter", { required: true }),
+    field("Moo", "หมู่ที่", "quarter"),
+    field("Soi", "ตรอก/ซอย", "half"),
+    field("Road", "ถนน", "half"),
+    field("Subdistrict", "ตำบล/แขวง", "half", { required: true }),
+    field("District", "อำเภอ/เขต", "third", { required: true }),
+    field("Province", "จังหวัด", "third", { required: true }),
+    field("PostalCode", "รหัสไปรษณีย์", "third", { required: true, pattern: POSTAL_PATTERN, maxLength: 5 }),
   ];
 }
 

@@ -1,4 +1,4 @@
-import type { CollegeCode } from "@/roles/shared/data/college-directory";
+import { COLLEGE_OPTIONS, type CollegeCode } from "@/roles/shared/data/college-directory";
 import { prefillAnswers } from "@/domain/forms/prefill";
 import type { FormContext, FormTemplate } from "@/domain/forms/schema";
 import { approvalExamTemplate, entranceTemplate, shortCourseTemplate } from "@/domain/forms/templates";
@@ -82,6 +82,9 @@ export function createDraftApplication(input: {
   const context = contextFor(input.kind, input.offering);
   const answers = prefillAnswers(template, applicantPrefillSource(input.profile));
   if (input.kind === "study") answers.courseTrack = input.offering.creditBankEligible ? "credit_bank" : "standard";
+  if (input.kind === "approval_exam") {
+    answers.program = `${input.offering.titleTh} · ${COLLEGE_OPTIONS.find((college) => college.value === input.offering.collegeCode)?.name ?? input.offering.collegeCode}`;
+  }
   return {
     id: input.id,
     kind: input.kind,

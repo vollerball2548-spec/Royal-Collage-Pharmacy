@@ -9,6 +9,7 @@ import { isFileValue, isRequired, isSignatureValue, isVisible } from "@/domain/f
 import type {
   FieldDef,
   FieldOption,
+  FieldWidth,
   FieldValue,
   FileValue,
   FormAnswers,
@@ -41,7 +42,7 @@ function Label({ htmlFor, field, required }: { htmlFor: string; field: FieldDef;
     <label htmlFor={htmlFor} className="text-sm font-medium">
       {field.label}
       {required ? <span className="text-danger"> *</span> : null}
-      {field.locked ? <span className="ml-2 rounded-md bg-muted px-1.5 py-0.5 text-2xs font-normal text-muted-foreground">จากทะเบียนสภาฯ</span> : null}
+      {field.locked && field.prefill ? <span className="ml-2 rounded-md bg-muted px-1.5 py-0.5 text-2xs font-normal text-muted-foreground">จากทะเบียนสภาฯ</span> : null}
     </label>
   );
 }
@@ -133,6 +134,54 @@ export function FieldControl({ field, value, answers, context, locked, errors, o
         </div>
         {error ? <p className="text-xs text-danger">{error}</p> : null}
       </div>
+    );
+  }
+
+  if (field.type === "repeater" && field.fixedItems) {
+    const rows = Array.isArray(value) ? value as Record<string, unknown>[] : [];
+    const headerKey = Object.keys(field.fixedItems[0] ?? {})[0];
+    const columns = field.fields.filter((child) => child.id !== headerKey);
+    return (
+      <fieldset className="space-y-2">
+        <legend className="text-sm font-medium">{field.label}{required ? <span className="text-danger"> *</span> : null}</legend>
+        <div className="overflow-x-auto rounded-xl border border-border">
+          <table className="w-full min-w-[40rem] border-collapse text-sm">
+            <thead>
+              <tr className="bg-surface-container-low text-left text-xs text-muted-foreground">
+                <th scope="col" className="w-44 px-3 py-2 font-medium">{field.fields.find((child) => child.id === headerKey)?.label}</th>
+                {columns.map((child) => <th key={child.id} scope="col" className="px-3 py-2 font-medium">{child.label}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, index) => (
+                <tr key={`${id}-${index}`} className="border-t border-border align-top">
+                  <th scope="row" className="px-3 py-2 text-left font-medium">{String(row[headerKey] ?? "")}</th>
+                  {columns.map((child) => {
+                    const childId = `${id}.${index}.${child.id}`;
+                    const childError = errorFor(errors, childId);
+                    const childRequired = isRequired(child, { ...answers, ...(row as FormAnswers) }, context);
+                    return (
+                      <td key={child.id} className="px-2 py-1.5">
+                        <label htmlFor={`field-${childId.replace(/\./g, "-")}`} className="sr-only">{String(row[headerKey] ?? "")} {child.label}</label>
+                        <Input
+                          id={`field-${childId.replace(/\./g, "-")}`}
+                          disabled={disabled}
+                          value={typeof row[child.id] === "string" ? row[child.id] as string : ""}
+                          placeholder={childRequired ? "จำเป็น" : "—"}
+                          aria-invalid={Boolean(childError)}
+                          onChange={(event) => onChange(rows.map((item, i) => (i === index ? { ...item, [child.id]: event.target.value } : item)))}
+                        />
+                        {childError ? <p className="mt-1 text-xs text-danger">{childError}</p> : null}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {error ? <p className="text-xs text-danger">{error}</p> : null}
+      </fieldset>
     );
   }
 
@@ -238,26 +287,70 @@ export function FieldControl({ field, value, answers, context, locked, errors, o
   );
 }
 
-export function FormRenderer({ step, answers, context, locked, errors, onChange, readOnly }: RendererProps) {
+const widthClass: Record<FieldWidth, string> = {
+  quarter: "sm:col-span-3",
+  third: "sm:col-span-4",
+  half: "sm:col-span-6",
+  full: "sm:col-span-12",
+};
+
+export function fieldWidth(field: FieldDef): FieldWidth {
+  if (field.width) return field.width;
+  return field.wide || field.type === "repeater" || field.type === "signature" || field.type === "textarea" ? "full" : "half";
+}
+
+function FieldGrid({ fields, answers, context, locked, errors, onChange, readOnly }: Omit<RendererProps, "step"> & { fields: readonly FieldDef[] }) {
   return (
-    <div className="space-y-4">
+    <div className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-12">
+      {fields.filter((field) => isVisible(field, answers, context)).map((field) => (
+        <div key={field.id} className={cn("min-w-0", widthClass[fieldWidth(field)])}>
+          <FieldControl
+            field={field}
+            value={answers[field.id]}
+            answers={answers}
+            context={context}
+            locked={locked.has(field.id)}
+            errors={errors}
+            readOnly={readOnly}
+            onChange={(value) => onChange(field.id, value)}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function FormRenderer({ step, answers, context, locked, errors, onChange, readOnly }: RendererProps) {
+  const ungrouped = step.fields.filter((field) => !field.group || !step.groups?.some((group) => group.id === field.group));
+  const shared = { answers, context, locked, errors, onChange, readOnly };
+  return (
+    <div className="space-y-5">
       {step.description ? <p className="rounded-xl border border-info-border bg-info-soft px-4 py-3 text-xs text-info-on-soft">{step.description}</p> : null}
-      <div className="grid gap-4 sm:grid-cols-2">
-        {step.fields.filter((field) => isVisible(field, answers, context)).map((field) => (
-          <div key={field.id} className={cn((field.wide || field.type === "repeater" || field.type === "signature" || field.type === "textarea") && "sm:col-span-2")}>
-            <FieldControl
-              field={field}
-              value={answers[field.id]}
-              answers={answers}
-              context={context}
-              locked={locked.has(field.id)}
-              errors={errors}
-              readOnly={readOnly}
-              onChange={(value) => onChange(field.id, value)}
-            />
-          </div>
-        ))}
-      </div>
+      {ungrouped.length > 0 ? <FieldGrid fields={ungrouped} {...shared} /> : null}
+      {step.groups?.map((group, index) => {
+        const fields = step.fields.filter((field) => field.group === group.id);
+        if (!fields.some((field) => isVisible(field, answers, context))) return null;
+        return (
+          <fieldset key={group.id} className="rounded-2xl border border-border bg-surface-container-low/40 p-4 md:p-5">
+            <legend className="sr-only">{group.title}</legend>
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">{index + 1}</span>
+                <div>
+                  <p className="font-semibold text-foreground">{group.title}</p>
+                  {group.description ? <p className="mt-0.5 text-xs text-muted-foreground">{group.description}</p> : null}
+                </div>
+              </div>
+              {group.copy && !readOnly ? (
+                <Button type="button" variant="outline" size="sm" onClick={() => Object.entries(group.copy!.from).forEach(([target, source]) => onChange(target, answers[source] ?? ""))}>
+                  <span className="material-symbols-outlined text-base" aria-hidden="true">content_copy</span>{group.copy.label}
+                </Button>
+              ) : null}
+            </div>
+            <FieldGrid fields={fields} {...shared} />
+          </fieldset>
+        );
+      })}
     </div>
   );
 }

@@ -49,6 +49,23 @@ interface FieldBase {
   locked?: boolean;
   /** กว้างเต็มแถวในหน้าจอและหน้าพิมพ์ */
   wide?: boolean;
+  /** ความกว้างในตาราง 12 คอลัมน์ (จัดหลายช่องในแถวเดียวแบบฟอร์มกระดาษ) */
+  width?: FieldWidth;
+  /** id ของหมวดใน step (FormStep.groups) */
+  group?: string;
+  /** ชื่อเต็มที่ใช้ในข้อความแจ้งเตือน เมื่อ label สั้นและซ้ำกันข้ามหมวด เช่น "เลขที่" */
+  errorLabel?: string;
+}
+
+export type FieldWidth = "quarter" | "third" | "half" | "full";
+
+/** หมวดย่อยใน step — แสดงเป็นกล่องแยกพร้อมหัวข้อ */
+export interface FormGroup {
+  id: string;
+  title: string;
+  description?: string;
+  /** ปุ่มคัดลอกค่าจากช่องอื่น เช่น "ใช้ที่อยู่เดียวกับสถานที่ทำงาน" (target → source) */
+  copy?: { label: string; from: Readonly<Record<string, string>> };
 }
 
 export interface TextField extends FieldBase { type: "text" | "textarea"; pattern?: { regex: string; message: string }; maxLength?: number }
@@ -68,6 +85,7 @@ export interface FormStep {
   id: string;
   title: string;
   description?: string;
+  groups?: readonly FormGroup[];
   fields: readonly FieldDef[];
 }
 

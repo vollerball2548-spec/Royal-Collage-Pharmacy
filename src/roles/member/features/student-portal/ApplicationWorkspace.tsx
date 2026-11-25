@@ -48,7 +48,10 @@ function Workspace({ application, save, actor }: {
   const membership = useMembership(actor.userId);
   const editing = application.status === "draft" || application.status === "needs_revision";
   const steps = application.status === "needs_revision" ? template.steps.filter((step) => step.fields.some((field) => field.type === "file")) : template.steps;
-  const [answers, setAnswers] = useState<FormAnswers>(application.answers);
+  // ใบสมัครที่สร้างก่อนมีช่อง "สาขาวิชา" ใช้ชื่อหลักสูตรของใบสมัครแทน
+  const [answers, setAnswers] = useState<FormAnswers>(() => (
+    application.kind === "approval_exam" && !application.answers.program ? { ...application.answers, program: application.offeringTitle } : application.answers
+  ));
   const [stepIndex, setStepIndex] = useState(0);
   const [errors, setErrors] = useState<FormError[]>([]);
   const [method, setMethod] = useState<PaymentMethod>("promptpay");
