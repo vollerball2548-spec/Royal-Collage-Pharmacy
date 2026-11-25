@@ -28,6 +28,7 @@ const navGroups: {
     groupLabel: "การลงทะเบียน",
     items: [
       { href: "/member/apply", icon: "edit_document", label: "สมัครเรียน / สมัครสอบ" },
+      { href: "/member/applications", icon: "assignment", label: "ใบสมัครของฉัน" },
       { href: "/member/programs", icon: "menu_book", label: "หลักสูตรและรายวิชา" },
       { href: "/member/registration/courses", icon: "library_add", label: "ลงทะเบียนเรียน" },
       { href: "/member/registration", icon: "how_to_reg", label: "สถานะการลงทะเบียน" },

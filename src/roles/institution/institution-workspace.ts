@@ -14,6 +14,8 @@ export const INSTITUTION_NAV_ITEMS: readonly WorkspaceNavItem[] = [
   { href: "/institution/registrations", icon: "how_to_reg", label: "ติดตามสถานะลงทะเบียน", section: LEARNER_SECTION },
   { href: "/institution/results", icon: "fact_check", label: "ติดตามผลการเรียน", section: LEARNER_SECTION },
   { href: "/institution/activity-transcript", icon: "history_edu", label: "Activity Transcript", section: LEARNER_SECTION },
+  { href: "/institution/applications", icon: "assignment_turned_in", label: "ตรวจใบสมัครสอบคัดเลือก", section: ADMISSIONS_SECTION },
+  { href: "/institution/short-course-proposals", icon: "post_add", label: "เสนอหลักสูตรระยะสั้น", section: ADMISSIONS_SECTION },
   { href: "/institution/admissions", icon: "person_check", label: "อนุมัติการสมัครของผู้เรียน", section: ADMISSIONS_SECTION },
   { href: "/institution/admission-exams", icon: "event_available", label: "เปิดสอบ", section: ADMISSIONS_SECTION },
   { href: "/institution/admission-results", icon: "workspace_premium", label: "ประกาศผลสอบ", section: ADMISSIONS_SECTION },

@@ -7,6 +7,8 @@ export const STAFF_NAV_ITEMS: readonly WorkspaceNavItem[] = [
   { href: "/staff/dashboard", icon: "dashboard", label: "ภาพรวมงาน" },
   { href: "/staff/courses", icon: "menu_book", label: "หลักสูตรและรายวิชา", section: ACTION_SECTION },
   { href: "/staff/course-proposals", icon: "fact_check", label: "ตรวจคำขอหลักสูตร", section: ACTION_SECTION },
+  { href: "/staff/applications", icon: "assignment_turned_in", label: "ตรวจใบสมัคร", section: ACTION_SECTION },
+  { href: "/staff/short-course-proposals", icon: "post_add", label: "คำขอเปิดหลักสูตรระยะสั้น", section: ACTION_SECTION },
   { href: "/staff/exams", icon: "quiz", label: "งานสอบ", section: ACTION_SECTION },
   { href: "/staff/requests", icon: "description", label: "คำร้อง", section: ACTION_SECTION },
   { href: "/staff/research", icon: "science", label: "งานวิจัย", section: ACTION_SECTION },
@@ -19,4 +21,5 @@ export const STAFF_NAV_ITEMS: readonly WorkspaceNavItem[] = [
 
 export const COLLEGE_STAFF_NAV_ITEMS: readonly WorkspaceNavItem[] = [
   { href: "/staff/college", icon: "account_balance", label: "งานวิทยาลัย" },
+  { href: "/staff/applications", icon: "assignment_turned_in", label: "ใบสมัครของวิทยาลัย (ดูอย่างเดียว)" },
 ] as const;

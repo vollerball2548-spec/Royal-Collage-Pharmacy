@@ -17,7 +17,7 @@ export function canAccessStaffCentralWorkspace(session: PortalSession | null) {
 
 export const COLLEGE_STAFF_HOME = "/staff/college";
 // College Staff may only open college-scoped pages; every other Staff page shows central (all-college) data.
-const COLLEGE_STAFF_ROUTES = [COLLEGE_STAFF_HOME] as const;
+const COLLEGE_STAFF_ROUTES = [COLLEGE_STAFF_HOME, "/staff/applications"] as const;
 
 export function collegeStaffResourceId(collegeOrganisationId: string) {
   return `college:${collegeOrganisationId}`;

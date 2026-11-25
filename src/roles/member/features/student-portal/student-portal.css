@@ -1,0 +1,87 @@
+.student-experience {
+  --student-control-radius: 0.75rem;
+}
+
+.student-hero {
+  background:
+    radial-gradient(ellipse at 95% 15%, var(--brand-border), transparent 48%),
+    linear-gradient(125deg, var(--card), var(--primary-container));
+}
+
+.student-membership {
+  background: linear-gradient(110deg, var(--brand-deep), var(--brand));
+}
+
+.student-experience input:not([type="checkbox"]):not([type="radio"]),
+.student-experience select,
+.student-experience textarea {
+  min-height: 2.75rem;
+  border-radius: var(--student-control-radius);
+}
+
+.student-timetable {
+  display: grid;
+  grid-template-columns: 5rem repeat(5, minmax(8rem, 1fr));
+}
+
+.student-timetable [role="columnheader"],
+.student-timetable [role="rowheader"],
+.student-timetable [role="cell"] {
+  min-height: 5.5rem;
+  padding: 0.75rem;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.student-timetable [role="columnheader"] {
+  min-height: auto;
+  background: var(--surface-container-low);
+  font-weight: 500;
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .student-experience *,
+  .student-experience *::before,
+  .student-experience *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+@media print {
+  body:has(.student-print-view) aside,
+  body:has(.student-print-view) header,
+  body:has(.student-print-view) nav,
+  body:has(.student-print-view) [data-student-no-print],
+  body:has(.student-print-view) [data-sonner-toaster],
+  body:has(.student-print-view) [data-slot="sheet-trigger"] {
+    display: none !important;
+  }
+
+  body:has(.student-print-view) main,
+  body:has(.student-print-view) main > div,
+  body:has(.student-print-view) main > div > div {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+
+  body:has(.student-print-view) .md\:pl-sidebar {
+    padding-left: 0 !important;
+  }
+
+  .student-print-view {
+    width: 100%;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 18mm !important;
+    box-shadow: none !important;
+    color: var(--print-ink);
+    background: var(--print-paper);
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}

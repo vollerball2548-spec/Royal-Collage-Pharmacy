@@ -16,6 +16,8 @@ describe("Institution workspace navigation", () => {
       { href: "/institution/registrations", section: "ผู้เรียนและผลการศึกษา" },
       { href: "/institution/results", section: "ผู้เรียนและผลการศึกษา" },
       { href: "/institution/activity-transcript", section: "ผู้เรียนและผลการศึกษา" },
+      { href: "/institution/applications", section: "งานรับสมัคร" },
+      { href: "/institution/short-course-proposals", section: "งานรับสมัคร" },
       { href: "/institution/admissions", section: "งานรับสมัคร" },
       { href: "/institution/admission-exams", section: "งานรับสมัคร" },
       { href: "/institution/admission-results", section: "งานรับสมัคร" },
