@@ -8,12 +8,16 @@ import {
 } from "@/roles/shared/features/admissions/documents";
 import {
   approvalExamDocumentRequirements,
-  isApprovalExamDocumentSet,
   isApprovalExamForm,
   isApprovalExamProgress,
   type ApprovalExamForm,
   type ApprovalExamProgress,
 } from "@/roles/shared/features/admissions/approval-exam";
+import {
+  isStudyApplicationForm,
+  studyDocumentRequirements,
+  type StudyApplicationForm,
+} from "@/roles/shared/features/admissions/study-application";
 import {
   cancelAdmissionExamRound as cancelAdmissionExamRoundRecord,
   assertInstitutionExamScope,
@@ -191,6 +195,8 @@ export interface Admission {
   /** ใบสมัครสอบอนุมัติที่ยื่นผ่านฟอร์มดิจิทัล: snapshot ผู้สมัคร คุณสมบัติ และการรับรอง ณ วันยื่น */
   approvalForm?: ApprovalExamForm;
   approvalProgress?: ApprovalExamProgress;
+  /** ใบสมัครเรียน/สมัครสอบคัดเลือกที่ยื่นผ่านฟอร์มดิจิทัล: หลักสูตร สถาบัน รอบ รายวิชา และ snapshot ผู้สมัคร */
+  studyApplication?: StudyApplicationForm;
 }
 
 export interface Payment {
@@ -677,12 +683,6 @@ function normalizeAdmissionDocuments(
       ? createMockSubmittedDocuments({ accepted: true })
       : createAdmissionDocuments();
   }
-  const requirements = isApprovalExamDocumentSet(value.filter((document): document is { id: string } => (
-    Boolean(document) && typeof document === "object" && typeof (document as { id?: unknown }).id === "string"
-  )))
-    ? approvalExamDocumentRequirements
-    : undefined;
-
   const storedById = new Map(
     value
       .filter((document): document is Record<string, unknown> => (
@@ -690,6 +690,10 @@ function normalizeAdmissionDocuments(
       ))
       .map((document) => [document.id as string, document]),
   );
+  // Digital forms store their own document sets (some items are conditional) — keep exactly the stored items.
+  const formSet = [approvalExamDocumentRequirements, studyDocumentRequirements]
+    .find((set) => set.some((requirement) => storedById.has(requirement.id)));
+  const requirements = formSet?.filter((requirement) => storedById.has(requirement.id));
 
   return createAdmissionDocuments(requirements).map((requirement) => {
     const stored = storedById.get(requirement.id);
@@ -806,6 +810,7 @@ function normalizeAdmission(value: unknown): Admission | null {
     licenseCheckedAt,
     ...(applicationType === "exam" && isApprovalExamForm(admission.approvalForm) ? { approvalForm: admission.approvalForm } : {}),
     ...(applicationType === "exam" && isApprovalExamProgress(admission.approvalProgress) ? { approvalProgress: admission.approvalProgress } : {}),
+    ...(applicationType === "study" && isStudyApplicationForm(admission.studyApplication) ? { studyApplication: admission.studyApplication } : {}),
   };
 }
 

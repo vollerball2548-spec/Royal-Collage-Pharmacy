@@ -101,6 +101,70 @@ export const ORGANISATIONS = {
     kind: "institution",
     parentId: "org-college-vpt",
   },
+  // สถาบันฝึกอบรมตามใบสมัครสอบคัดเลือก (กลุ่มที่ 1–2 สาขาเภสัชบำบัด และสาขาเภสัชพันธุศาสตร์ฯ)
+  pharmacyPSU: {
+    id: "org-inst-psu-pharmacy",
+    code: "INST-PSU-PHARM",
+    name: "คณะเภสัชศาสตร์ มหาวิทยาลัยสงขลานครินทร์",
+    kind: "institution",
+    parentId: "org-college-vpt",
+  },
+  pharmacyNU: {
+    id: "org-inst-nu-pharmacy",
+    code: "INST-NU-PHARM",
+    name: "คณะเภสัชศาสตร์ มหาวิทยาลัยนเรศวร",
+    kind: "institution",
+    parentId: "org-college-vpt",
+  },
+  pharmacyKKU: {
+    id: "org-inst-kku-pharmacy",
+    code: "INST-KKU-PHARM",
+    name: "คณะเภสัชศาสตร์ มหาวิทยาลัยขอนแก่น",
+    kind: "institution",
+    parentId: "org-college-vpt",
+  },
+  pharmacyMU: {
+    id: "org-inst-mu-pharmacy",
+    code: "INST-MU-PHARM",
+    name: "คณะเภสัชศาสตร์ มหาวิทยาลัยมหิดล",
+    kind: "institution",
+    parentId: "org-college-vpt",
+  },
+  pharmacySU: {
+    id: "org-inst-su-pharmacy",
+    code: "INST-SU-PHARM",
+    name: "คณะเภสัชศาสตร์ มหาวิทยาลัยศิลปากร",
+    kind: "institution",
+    parentId: "org-college-vpt",
+  },
+  pharmacyCMU: {
+    id: "org-inst-cmu-pharmacy",
+    code: "INST-CMU-PHARM",
+    name: "คณะเภสัชศาสตร์ มหาวิทยาลัยเชียงใหม่",
+    kind: "institution",
+    parentId: "org-college-vpt",
+  },
+  pharmacyTU: {
+    id: "org-inst-tu-pharmacy",
+    code: "INST-TU-PHARM",
+    name: "คณะเภสัชศาสตร์ มหาวิทยาลัยธรรมศาสตร์",
+    kind: "institution",
+    parentId: "org-college-vpt",
+  },
+  pharmacyUBU: {
+    id: "org-inst-ubu-pharmacy",
+    code: "INST-UBU-PHARM",
+    name: "คณะเภสัชศาสตร์ มหาวิทยาลัยอุบลราชธานี",
+    kind: "institution",
+    parentId: "org-college-vpt",
+  },
+  ramathibodi: {
+    id: "org-inst-ramathibodi",
+    code: "INST-RAMA",
+    name: "โรงพยาบาลรามาธิบดี",
+    kind: "institution",
+    parentId: "org-college-cppm",
+  },
 } as const satisfies Record<string, OrganisationScope>;
 
 export const ORGANISATION_LIST: readonly OrganisationScope[] = Object.values(ORGANISATIONS);

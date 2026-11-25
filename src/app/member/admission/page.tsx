@@ -44,7 +44,6 @@ import {
   admissionWording,
   approvalExamOfferings,
   canEnrollAfterEntranceExam,
-  ENTRANCE_EXAM_FEE,
   findApprovalExamOffering,
   publishedEntranceResult,
 } from "@/roles/shared/features/admissions/program-offerings";
@@ -59,6 +58,12 @@ import {
   type ApprovalExamForm,
 } from "@/roles/shared/features/admissions/approval-exam";
 import { applicantFullName, currentApplicantProfile, formatAddress, snapshotApplicant } from "@/roles/shared/features/applicant/profile";
+import {
+  findOffering,
+  studyApplicationFee,
+  studyApplicationKindLabel,
+} from "@/roles/shared/features/admissions/study-application";
+import type { Admission } from "@/providers/mock-db-provider";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -95,14 +100,15 @@ const colleges = approvalExamOfferings().map((item) => ({
 // shortcut: ใบสมัครเดิมที่จับคู่รายการสอบอนุมัติไม่ได้ใช้ยอด mock เดิม 2,500 บาท — ตัดออกเมื่อมีข้อมูลค่าธรรมเนียมจริงในระบบ
 const LEGACY_EXAM_FEE = 2500;
 
-function examFeeFor(application: { applicationType: "exam" | "study"; program: string }) {
+/** undefined = ยังไม่มีอัตราค่าสมัครในแบบฟอร์ม หรือรายการนี้ไม่มีค่าสมัครสอบ → ยังไม่เปิดชำระ */
+function examFeeFor(application: Pick<Admission, "applicationType" | "program" | "studyApplication">): number | undefined {
   return application.applicationType === "study"
-    ? ENTRANCE_EXAM_FEE
+    ? studyApplicationFee(application.studyApplication)
     : findApprovalExamOffering(application.program)?.examFee ?? LEGACY_EXAM_FEE;
 }
 
-function applicationKindLabel(application: { applicationType: "exam" | "study" }) {
-  return application.applicationType === "study" ? admissionWording.entranceExam : admissionWording.approvalExam;
+function applicationKindLabel(application: Pick<Admission, "applicationType" | "studyApplication">) {
+  return application.applicationType === "study" ? studyApplicationKindLabel(application.studyApplication) : admissionWording.approvalExam;
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -158,7 +164,7 @@ export default function ExamApplicationPage() {
   const openPayment = (app: typeof admissions[0]) => {
     setPayingApp(app);
     setPayRef(`EXM-${app.id}`);
-    setPayAmount(String(examFeeFor(app)));
+    setPayAmount(String(examFeeFor(app) ?? 0));
     setPayFile(null);
     setPayError("");
     setPayDone(false);
@@ -205,7 +211,7 @@ export default function ExamApplicationPage() {
       studentId: currentMemberPassport.memberId,
       name: payingApp.name,
       program: payingApp.program,
-      amount: examFeeFor(payingApp),
+      amount: examFeeFor(payingApp) ?? 0,
       date: new Date(submittedAt).toLocaleDateString("th-TH"),
       status: payMethod === "promptpay" ? "pending" : "approved",
       type: `ค่า${applicationKindLabel(payingApp)}`,
@@ -525,7 +531,12 @@ export default function ExamApplicationPage() {
                             </Link>
                           </Button>
                         )}
-                        {isApproved && !entranceResult && (paymentState === "none" || paymentState === "rejected") && (
+                        {isApproved && !entranceResult && examFeeFor(app) === undefined && (
+                          <Badge variant="neutral" className="h-auto px-2 py-1 text-2xs">
+                            {findOffering(app.studyApplication?.offeringId)?.group === "credit_bank" ? "รอผู้รับผิดชอบหลักสูตรแจ้งค่าลงทะเบียน" : "รอประกาศอัตราค่าสมัครสอบ"}
+                          </Badge>
+                        )}
+                        {isApproved && !entranceResult && examFeeFor(app) !== undefined && (paymentState === "none" || paymentState === "rejected") && (
                           <Button
                             size="sm"
                             className="h-7 gap-1 bg-success px-3 text-xs text-success-foreground shadow-none hover:bg-success/90"
@@ -597,11 +608,11 @@ export default function ExamApplicationPage() {
                           <div className="space-y-2 text-sm">
                             <div className="flex justify-between">
                               <span className="text-muted-foreground">ค่า{applicationKindLabel(payingApp)}</span>
-                              <span>{examFeeFor(payingApp).toLocaleString("th-TH")} บาท</span>
+                              <span>{(examFeeFor(payingApp) ?? 0).toLocaleString("th-TH")} บาท</span>
                             </div>
                             <div className="flex justify-between font-semibold pt-2 border-t border-border">
                               <span>รวมทั้งสิ้น</span>
-                              <span className="text-primary text-base">{examFeeFor(payingApp).toLocaleString("th-TH")} บาท</span>
+                              <span className="text-primary text-base">{(examFeeFor(payingApp) ?? 0).toLocaleString("th-TH")} บาท</span>
                             </div>
                           </div>
                         </div>
@@ -678,7 +689,7 @@ export default function ExamApplicationPage() {
                           <>
                             <div className="rounded-xl border border-border bg-muted/20 p-4 text-center">
                               <span className="material-symbols-outlined text-5xl text-primary" aria-hidden="true">qr_code_2</span>
-                              <p className="mt-2 text-xs text-muted-foreground">สแกน QR เพื่อชำระ {examFeeFor(payingApp).toLocaleString("th-TH")} บาท</p>
+                              <p className="mt-2 text-xs text-muted-foreground">สแกน QR เพื่อชำระ {(examFeeFor(payingApp) ?? 0).toLocaleString("th-TH")} บาท</p>
                             </div>
                             <div className="space-y-1.5">
                               <span className="text-xs font-medium">หลักฐานการชำระเงิน</span>

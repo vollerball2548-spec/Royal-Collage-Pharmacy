@@ -40,7 +40,10 @@ describe("program offerings", () => {
 
   it("derives admission method from program type and agrees with the application routes", () => {
     for (const item of programOfferings) {
-      const expected = { short_course: "direct_enrollment", advanced_program: "entrance_exam", board_certification: "entrance_exam", approval_exam: "approval_exam" }[item.type];
+      const creditBankBoard = item.type === "board_certification" && item.creditBankEligible;
+      const expected = creditBankBoard
+        ? "direct_enrollment"
+        : { short_course: "direct_enrollment", advanced_program: "entrance_exam", board_certification: "entrance_exam", approval_exam: "approval_exam" }[item.type];
       expect(item.admissionMethod, item.id).toBe(expected);
     }
     const route = (item: ProgramOffering) => applicationRouteFor(item);
@@ -70,7 +73,7 @@ describe("program offerings", () => {
     const creditBankBoard = programOfferings.find((item) => item.id === "board:CPAT")!;
 
     expect(resolveStudyFlow(residency).steps[0]).toBe("เลือกสถาบันฝึกอบรม");
-    expect(trainingInstitutionsFor(residency).map((org) => org.id)).toContain("org-inst-siriraj");
+    expect(trainingInstitutionsFor(residency).map((org) => org.id)).toContain("org-inst-chula");
     expect(resolveStudyFlow(creditBankBoard).steps).not.toContain("เลือกสถาบันฝึกอบรม");
     expect(trainingInstitutionsFor(creditBankBoard)).toEqual([]);
   });
