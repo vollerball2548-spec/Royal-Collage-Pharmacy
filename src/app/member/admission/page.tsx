@@ -15,16 +15,18 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { PersonalInfoCard } from "@/roles/shared/member/components/PersonalInfoCard";
-import { AddressCard } from "@/roles/shared/member/components/AddressCard";
-import { WorkplaceCard } from "@/roles/shared/member/components/WorkplaceCard";
+import {
+  ApplicantStep,
+  DeclarationFields,
+  HistoryStep,
+  QualificationStep,
+} from "@/roles/member/features/approval-exam/ApprovalExamFormSteps";
 import { PageShell } from "@/roles/shared/components/layout/PageShell";
 import { useMockDb, type Payment } from "@/providers/mock-db-provider";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { FileUploadField } from "@/roles/shared/components/forms/FileUploadField";
 import {
-  createAdmissionDocuments,
   getAdmissionDocumentProgress,
   type AdmissionDocument,
 } from "@/roles/shared/features/admissions/documents";
@@ -46,23 +48,43 @@ import {
   findApprovalExamOffering,
   publishedEntranceResult,
 } from "@/roles/shared/features/admissions/program-offerings";
+import {
+  APPROVAL_EXAM_DOCUMENT_NOTE,
+  APPROVAL_EXAM_FORM_STEPS,
+  approvalExamStepErrors,
+  approvalExamTimeline,
+  createApprovalExamDocuments,
+  createApprovalExamForm,
+  GENERAL_QUALIFICATIONS,
+  type ApprovalExamForm,
+} from "@/roles/shared/features/admissions/approval-exam";
+import { applicantFullName, currentApplicantProfile, formatAddress, snapshotApplicant } from "@/roles/shared/features/applicant/profile";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
-const STEPS = [
-  { id: 1, title: "เลือกรายการสอบอนุมัติ" },
-  { id: 2, title: "ตรวจสอบคุณสมบัติ" },
-  { id: 3, title: "ยืนยันการสมัคร" },
-];
+const STEPS = APPROVAL_EXAM_FORM_STEPS;
+const LAST_STEP = STEPS.length;
+const DOCUMENT_STEP = 5;
 
 const stepProgressWidthClass: Record<number, string> = {
   1: "w-0",
-  2: "w-1/2",
-  3: "w-full",
+  2: "w-1/5",
+  3: "w-2/5",
+  4: "w-3/5",
+  5: "w-4/5",
+  6: "w-full",
 };
+
+const timelineStateClass = {
+  completed: "border-success-border bg-success-soft text-success-on-soft",
+  current: "border-primary/40 bg-primary/10 text-primary",
+  waiting: "border-border bg-muted/30 text-muted-foreground",
+  problem: "border-danger-border bg-danger-soft text-danger-on-soft",
+} as const;
 
 const colleges = approvalExamOfferings().map((item) => ({
   id: item.id,
+  collegeCode: item.collegeCode,
   name: getCollegeOption(item.collegeCode)?.name ?? item.collegeCode,
   abbr: getCollegeOption(item.collegeCode)?.abbreviation ?? item.collegeCode,
   icon: "workspace_premium",
@@ -103,7 +125,13 @@ export default function ExamApplicationPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [completionKind, setCompletionKind] = useState<"application" | "documents" | null>(null);
   const [payingApp, setPayingApp] = useState<typeof admissions[0] | null>(null);
-  const [documents, setDocuments] = useState<AdmissionDocument[]>(createAdmissionDocuments);
+  const [documents, setDocuments] = useState<AdmissionDocument[]>(createApprovalExamDocuments);
+  const [form, setForm] = useState<ApprovalExamForm | null>(null);
+  const [stepErrors, setStepErrors] = useState<string[]>([]);
+  const updateForm = (updater: (current: ApprovalExamForm) => ApprovalExamForm) => {
+    setForm((current) => (current ? updater(current) : current));
+    setStepErrors([]);
+  };
   const [editingAdmissionId, setEditingAdmissionId] = useState<string>();
   const licenseRegistryRecord = findLicenseRegistryRecord(currentMemberPassport.license.licenseNumber);
   const licenseStatus = licenseRegistryRecord?.status ?? "unverified";
@@ -201,12 +229,35 @@ export default function ExamApplicationPage() {
       });
       return;
     }
-    if (currentStep === 3) submitApplication();
-    else setCurrentStep((p) => Math.min(p + 1, 3));
+    if (editingAdmissionId) {
+      submitApplication();
+      return;
+    }
+    if (currentStep === 1) {
+      const college = colleges.find((item) => item.id === selectedCollege);
+      if (!college) return;
+      if (!form || form.collegeCode !== college.collegeCode) {
+        const previousApplicant = form?.applicant;
+        setForm(createApprovalExamForm(
+          college.collegeCode,
+          previousApplicant ?? snapshotApplicant(currentApplicantProfile(), new Date().toISOString()),
+        ));
+      }
+    } else if (form) {
+      const errors = approvalExamStepErrors(currentStep, form);
+      setStepErrors(errors);
+      if (errors.length > 0) {
+        toast.error("กรุณากรอกข้อมูลให้ครบถ้วน", { description: errors[0] });
+        return;
+      }
+    }
+    if (currentStep === LAST_STEP) submitApplication();
+    else setCurrentStep((p) => Math.min(p + 1, LAST_STEP));
   };
 
   const handlePrev = () => {
-    if (editingAdmissionId && currentStep === 2) return;
+    if (editingAdmissionId) return;
+    setStepErrors([]);
     setCurrentStep((previous) => Math.max(previous - 1, 1));
   };
 
@@ -232,7 +283,7 @@ export default function ExamApplicationPage() {
     setDocuments(application.documents);
     setEditingAdmissionId(application.id);
     setSelectedCollege(findApprovalExamOffering(application.program)?.id ?? colleges[0].id);
-    setCurrentStep(2);
+    setCurrentStep(DOCUMENT_STEP);
     setStarted(true);
   };
 
@@ -266,16 +317,18 @@ export default function ExamApplicationPage() {
         return;
       }
 
+      if (!form) return;
       const submittedAt = new Date();
       const newId = `EXM-2569-${Math.floor(Math.random() * 1000).toString().padStart(3, "0")}`;
       setAdmissions((prev) => [
         {
           id: newId,
-          name: `${profileData.personalInfo.title}${profileData.personalInfo.firstName} ${profileData.personalInfo.lastName}`,
-          license: profileData.personalInfo.licenseNumber || "รอตรวจสอบ",
+          name: applicantFullName(form.applicant.person),
+          license: form.applicant.license.licenseNumber || "รอตรวจสอบ",
           program: colleges.find((college) => college.id === selectedCollege)?.credential ?? "ไม่ระบุ",
           date: submittedAt.toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" }),
           submittedAt: submittedAt.toISOString(),
+          // TODO(business): ใครเป็นผู้ตรวจคุณสมบัติใบสมัครสอบอนุมัติ (วิทยาลัย / ราชวิทยาลัย) — ตอนนี้คงเส้นทางเดิมให้สถาบันหลักตรวจ
           institutionId: ORGANISATIONS.siriraj.id,
           applicationType: "exam",
           status: "pending",
@@ -283,6 +336,7 @@ export default function ExamApplicationPage() {
           documentStatus,
           licenseStatus,
           licenseCheckedAt: licenseRegistryRecord?.checkedAt ?? new Date().toISOString(),
+          approvalForm: { ...form, applicant: { ...form.applicant, capturedAt: submittedAt.toISOString() } },
         },
         ...prev,
       ]);
@@ -297,7 +351,9 @@ export default function ExamApplicationPage() {
     setStarted(false);
     setCurrentStep(1);
     setSelectedCollege("");
-    setDocuments(createAdmissionDocuments());
+    setDocuments(createApprovalExamDocuments());
+    setForm(null);
+    setStepErrors([]);
     setEditingAdmissionId(undefined);
   };
 
@@ -420,6 +476,12 @@ export default function ExamApplicationPage() {
                   const isApproved = app.status === "approved";
                   const entranceResult = publishedEntranceResult(app, admissionExamResults);
                   const canEnroll = canEnrollAfterEntranceExam(app, admissionExamResults);
+                  const examPayment = payments.find((payment) => payment.invoiceId === `admission-${app.id}` && payment.status !== "rejected")
+                    ?? payments.find((payment) => payment.invoiceId === `admission-${app.id}`);
+                  const paymentState = examPayment?.status === "approved" ? "approved" : examPayment?.status ?? "none";
+                  const timeline = app.applicationType === "exam"
+                    ? approvalExamTimeline({ status: app.status, payment: paymentState, progress: app.approvalProgress })
+                    : null;
                   return (
                     <div key={app.id} className="grid grid-cols-1 md:grid-cols-[1fr_1.5fr_100px_auto] gap-2 md:gap-4 px-5 py-4 hover:bg-muted/20 transition-colors items-center">
                       <div><span className="font-mono text-xs text-primary font-semibold">{app.id}</span></div>
@@ -428,6 +490,15 @@ export default function ExamApplicationPage() {
                         <p className="text-xs font-medium text-primary">{applicationKindLabel(app)}</p>
                         <p className="text-xs text-muted-foreground">{app.name}</p>
                         {app.documentNote && <p className="mt-1 text-xs text-danger">{app.documentNote}</p>}
+                        {timeline && (
+                          <ol aria-label={`สถานะ${admissionWording.approvalExam} ${app.id}`} className="mt-2 flex flex-wrap gap-1.5">
+                            {timeline.map((step) => (
+                              <li key={step.id} className={cn("rounded-full border px-2 py-0.5 text-2xs", timelineStateClass[step.state])}>
+                                {step.label}{step.detail ? `: ${step.detail}` : ""}
+                              </li>
+                            ))}
+                          </ol>
+                        )}
                       </div>
                       <div className="flex items-center"><span className="text-xs text-muted-foreground">{app.date}</span></div>
                       <div className="flex md:justify-end items-center gap-2 flex-wrap">
@@ -454,7 +525,7 @@ export default function ExamApplicationPage() {
                             </Link>
                           </Button>
                         )}
-                        {isApproved && !entranceResult && (
+                        {isApproved && !entranceResult && (paymentState === "none" || paymentState === "rejected") && (
                           <Button
                             size="sm"
                             className="h-7 gap-1 bg-success px-3 text-xs text-success-foreground shadow-none hover:bg-success/90"
@@ -742,7 +813,7 @@ export default function ExamApplicationPage() {
             {currentStep === 1 && (
               <motion.div key="step1" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.3 }}>
                 <div className="mb-5">
-                  <h2 className="text-lg font-bold mb-1">เลือกรายการสอบอนุมัติ (สอบขอหนังสืออนุมัติโดยไม่ต้องเข้าเรียน)</h2>
+                  <h2 className="text-lg font-bold mb-1">เลือกสาขาวิชาและวิทยาลัยที่ประสงค์สมัครสอบหนังสืออนุมัติ</h2>
                   <p className="text-sm text-muted-foreground">กรุณาเลือก 1 สาขา</p>
                 </div>
 
@@ -776,34 +847,40 @@ export default function ExamApplicationPage() {
               </motion.div>
             )}
 
-            {/* ── STEP 2: ตรวจสอบคุณสมบัติ ───────────────────────────────────── */}
-            {currentStep === 2 && (
-              <motion.div key="step2" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.3 }} className="space-y-6">
-                <div className="bg-primary/5 border border-primary/20 p-4 rounded-xl flex items-start gap-3">
-                  <span className="material-symbols-outlined text-primary mt-0.5">auto_awesome</span>
-                  <div>
-                    <h4 className="font-semibold text-primary text-sm">ดึงข้อมูลจาก Pharmacist Profile สำเร็จ</h4>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      ระบบดึงประวัติของคุณมาใช้ประกอบการสมัครสอบอนุมัติแล้ว กรุณาตรวจสอบความถูกต้องก่อนไปขั้นตอนถัดไป
-                    </p>
-                  </div>
-                </div>
-                <LicenseEligibilityNotice
-                  status={licenseStatus}
-                  licenseNumber={currentMemberPassport.license.licenseNumber}
-                  checkedAt={licenseRegistryRecord?.checkedAt}
-                />
-                <PersonalInfoCard data={profileData.personalInfo} isReadOnly={true} />
-                <AddressCard title="ที่อยู่ตามบัตรประชาชน" icon="home" data={profileData.personalInfo} isReadOnly={true} showContactInfo={false} />
-                <AddressCard title="ที่อยู่ปัจจุบัน/ที่ติดต่อได้" icon="contact_mail" data={profileData.personalInfo} isReadOnly={true} showContactInfo={true} />
-                <WorkplaceCard data={profileData.workHistory} isReadOnly={true} />
+            {/* ── STEP 2–4: ข้อมูลผู้สมัคร / ประวัติ / คุณสมบัติ ───────────────── */}
+            {form && !editingAdmissionId && currentStep >= 2 && currentStep <= 4 && (
+              <motion.div key={`step${currentStep}`} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.3 }} className="space-y-5">
+                {currentStep === 2 && (
+                  <>
+                    <div className="flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
+                      <span className="material-symbols-outlined mt-0.5 text-primary" aria-hidden="true">auto_awesome</span>
+                      <p className="text-xs text-muted-foreground">
+                        ระบบเติมข้อมูลจาก Pharmacist Profile ให้แล้ว การแก้ไขในหน้านี้บันทึกเฉพาะในใบสมัครนี้ ณ วันที่ยื่น
+                      </p>
+                    </div>
+                    <LicenseEligibilityNotice
+                      status={licenseStatus}
+                      licenseNumber={currentMemberPassport.license.licenseNumber}
+                      checkedAt={licenseRegistryRecord?.checkedAt}
+                      compact
+                    />
+                    <ApplicantStep form={form} onChange={updateForm} />
+                  </>
+                )}
+                {currentStep === 3 && <HistoryStep form={form} onChange={updateForm} />}
+                {currentStep === 4 && <QualificationStep form={form} onChange={updateForm} collegeName={selectedCollegeObj?.name ?? ""} />}
+              </motion.div>
+            )}
 
+            {/* ── STEP 5: เอกสารแนบ ──────────────────────────────────────────── */}
+            {currentStep === DOCUMENT_STEP && (
+              <motion.div key="step5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.3 }}>
                 <section className="rounded-xl border border-border bg-card p-5" aria-labelledby="admission-documents-heading">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                      <h3 id="admission-documents-heading" className="text-base font-semibold">เอกสารประกอบการสมัคร</h3>
+                      <h3 id="admission-documents-heading" className="text-base font-semibold">เอกสารหลักฐานแนบประกอบการสมัคร</h3>
                       <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                        เอกสารทุกประเภทเป็นทางเลือก สามารถส่งคำร้องได้ทันทีและกลับมาแนบเพิ่มเติมภายหลัง
+                        {APPROVAL_EXAM_DOCUMENT_NOTE} · ส่งคำขอได้ก่อนแล้วกลับมาแนบเพิ่มภายหลัง หลักฐานการชำระค่าสมัครสอบแนบในขั้นชำระเงินหลังผ่านการตรวจคุณสมบัติ
                       </p>
                     </div>
                     <Badge variant="outline" className="w-fit shrink-0">
@@ -817,8 +894,8 @@ export default function ExamApplicationPage() {
                         <FileUploadField
                           compact
                           label={document.label}
-                          description={document.hint ?? "เอกสารแนบทางเลือก"}
-                          required={false}
+                          description={document.hint ?? (document.required ? "เอกสารที่ต้องใช้ประกอบการพิจารณา" : "เอกสารแนบทางเลือก")}
+                          required={document.required}
                           value={document.file}
                           onChange={(file) => updateDocumentFile(document.id, file)}
                         />
@@ -830,88 +907,57 @@ export default function ExamApplicationPage() {
                       </div>
                     ))}
                   </div>
-
                 </section>
               </motion.div>
             )}
 
-            {/* ── STEP 3: ยืนยัน ───────────────────────────────────────────────── */}
-            {currentStep === 3 && (
-              <motion.div key="step3" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.3 }}>
+            {/* ── STEP 6: สรุป รับรอง และส่งคำขอ ───────────────────────────────── */}
+            {form && currentStep === LAST_STEP && (
+              <motion.div key="step6" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.3 }} className="space-y-5">
                 <Card className="border-t-4 border-t-primary">
-                  <CardHeader className="text-center pb-2">
-                    <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <span className="material-symbols-outlined text-primary text-3xl">task_alt</span>
-                    </div>
-                    <CardTitle className="text-xl">สรุปการสมัครสอบอนุมัติ</CardTitle>
-                    <CardDescription>กรุณาตรวจสอบข้อมูลทั้งหมดอีกครั้งก่อนกดส่งคำร้อง</CardDescription>
+                  <CardHeader className="pb-2 text-center">
+                    <CardTitle className="text-xl">สรุปใบ{admissionWording.approvalExam}</CardTitle>
+                    <CardDescription>ตรวจสอบข้อมูลก่อนลงชื่อรับรองและส่งคำขอ</CardDescription>
                   </CardHeader>
-                  <CardContent className="mt-4">
-                    <div className="bg-muted/30 p-5 rounded-xl border space-y-0 divide-y divide-border">
-                      <div className="flex justify-between items-center py-3">
-                        <span className="text-sm text-muted-foreground">ประเภทคำร้อง</span>
-                        <Badge className="text-sm px-3 py-1 border-0 bg-primary/10 text-primary">
-                          <span className="material-symbols-outlined text-sm mr-1">quiz</span>
-                          สมัครสอบ
-                        </Badge>
-                      </div>
-                      <div className="flex justify-between items-center py-3">
-                        <span className="text-sm text-muted-foreground">วิทยาลัย/สาขาที่สอบ</span>
-                        <div className="text-right">
-                          <div className="text-sm font-semibold">{selectedCollegeObj?.name}</div>
-                          <div className="text-xs text-muted-foreground">{selectedCollegeObj?.credential}</div>
+                  <CardContent className="mt-2">
+                    <dl className="divide-y divide-border rounded-xl border bg-muted/30 px-5">
+                      {[
+                        { label: "สาขาและวิทยาลัยที่สมัครสอบ", value: `${selectedCollegeObj?.name ?? ""} · ${selectedCollegeObj?.credential ?? ""}` },
+                        { label: "ผู้สมัครสอบ", value: applicantFullName(form.applicant.person) },
+                        { label: "ใบอนุญาตประกอบวิชาชีพเภสัชกรรม", value: form.applicant.license.licenseNumber },
+                        { label: "ตำแหน่ง / สถานที่ทำงาน", value: `${form.applicant.workplace.position} · ${form.applicant.workplace.organisation}` },
+                        { label: "ที่อยู่ที่ติดต่อได้", value: formatAddress(form.applicant.person.contactAddress) },
+                        { label: "ประวัติการทำงาน", value: `${form.applicant.employment.filter((record) => record.position.trim()).length} รายการ` },
+                        { label: "คุณสมบัติที่แสดง", value: `${form.declaredQualifications.length} ข้อ (คุณสมบัติทั่วไป ${GENERAL_QUALIFICATIONS.filter((item) => form.declaredQualifications.includes(item.id)).length}/${GENERAL_QUALIFICATIONS.length})` },
+                        { label: "เอกสารแนบ", value: `แนบแล้ว ${documentProgress.attached}/${documentProgress.total} รายการ` },
+                        { label: "ค่าสมัครสอบ (ชำระหลังผ่านการตรวจคุณสมบัติ)", value: `${(findApprovalExamOffering(selectedCollege)?.examFee ?? LEGACY_EXAM_FEE).toLocaleString("th-TH")} บาท` },
+                      ].map((row) => (
+                        <div key={row.label} className="flex flex-col gap-1 py-3 sm:flex-row sm:justify-between sm:gap-4">
+                          <dt className="text-sm text-muted-foreground">{row.label}</dt>
+                          <dd className="text-sm font-medium sm:text-right">{row.value || "—"}</dd>
                         </div>
-                      </div>
-                      <div className="flex justify-between items-center py-3">
-                        <span className="text-sm text-muted-foreground">ผู้สมัครสอบ</span>
-                        <span className="text-sm font-semibold">
-                          {profileData.personalInfo.title}{profileData.personalInfo.firstName} {profileData.personalInfo.lastName}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center py-3">
-                        <span className="text-sm text-muted-foreground">เลขที่ใบประกอบวิชาชีพ</span>
-                        <span className="text-sm font-semibold font-mono">{profileData.personalInfo.licenseNumber}</span>
-                      </div>
-                      <div className="flex items-start justify-between gap-4 py-3">
-                        <span className="text-sm text-muted-foreground">เอกสารประกอบ</span>
-                        <div className="text-right">
-                          <Badge variant="outline">
-                            {documentProgress.attached > 0
-                              ? `แนบแล้ว ${documentProgress.attached}/${documentProgress.total} รายการ`
-                              : "ยังไม่ได้แนบเอกสาร"}
-                          </Badge>
-                          <p className="mt-1 max-w-sm text-xs text-muted-foreground">
-                            การแนบเอกสารเป็นทางเลือกและไม่ขัดขวางการส่งคำร้อง
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-5 flex items-start gap-2.5 p-4 rounded-xl bg-muted/30 border border-border/50 text-xs text-muted-foreground">
-                      <span className="material-symbols-outlined text-base mt-0.5 flex-shrink-0">info</span>
-                      <p>
-                        เมื่อกดส่งคำร้อง ระบบจะบันทึกข้อมูลการสมัครสอบอนุมัติและแจ้งไปยังเจ้าหน้าที่เพื่อพิจารณาคุณสมบัติ
-                        เจ้าหน้าที่จะติดต่อกลับผ่านอีเมลที่ลงทะเบียนไว้
-                      </p>
-                    </div>
-
-                    <div className="mt-5 flex justify-center">
-                      <Button variant="outline" className="gap-2 border-primary/20 text-primary hover:bg-primary/5" onClick={() => window.open("/print/admission", "_blank")}>
-                        <span className="material-symbols-outlined text-lg">print</span>
-                        พิมพ์ใบสมัครสอบอนุมัติ (PDF)
-                      </Button>
-                    </div>
+                      ))}
+                    </dl>
                   </CardContent>
                 </Card>
+                <DeclarationFields form={form} onChange={updateForm} />
               </motion.div>
             )}
 
           </AnimatePresence>
+          {stepErrors.length > 0 && (
+            <div role="alert" className="mt-5 rounded-xl border border-danger-border bg-danger-soft p-4 text-sm text-danger-on-soft">
+              <p className="font-semibold">กรุณาแก้ไขก่อนไปขั้นถัดไป</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                {stepErrors.map((error) => <li key={error}>{error}</li>)}
+              </ul>
+            </div>
+          )}
         </div>
 
         {/* Navigation Buttons */}
         <div className="flex justify-between items-center pt-6 mt-4 border-t">
-          <Button variant="outline" onClick={handlePrev} disabled={currentStep === 1 || Boolean(editingAdmissionId && currentStep === 2)} className="w-24 gap-1">
+          <Button variant="outline" onClick={handlePrev} disabled={currentStep === 1 || Boolean(editingAdmissionId)} className="w-24 gap-1">
             <span className="material-symbols-outlined text-sm">arrow_back</span> กลับ
           </Button>
           <Button
@@ -924,10 +970,10 @@ export default function ExamApplicationPage() {
                 <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>
                 กำลังส่ง...
               </>
-            ) : currentStep === 3 ? (
+            ) : currentStep === LAST_STEP || editingAdmissionId ? (
               <>
                 <span className="material-symbols-outlined text-sm">send</span>
-                ส่งคำร้อง
+                {editingAdmissionId ? "ส่งเอกสาร" : "ส่งคำขอ"}
               </>
             ) : (
               <>

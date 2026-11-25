@@ -38,8 +38,10 @@ export const admissionDocumentRequirements: AdmissionDocumentRequirement[] = [
   },
 ];
 
-export function createAdmissionDocuments(): AdmissionDocument[] {
-  return admissionDocumentRequirements.map((requirement) => ({
+export function createAdmissionDocuments(
+  requirements: readonly AdmissionDocumentRequirement[] = admissionDocumentRequirements,
+): AdmissionDocument[] {
+  return requirements.map((requirement) => ({
     ...requirement,
     reviewStatus: requirement.required ? "pending" : "not_applicable",
   }));

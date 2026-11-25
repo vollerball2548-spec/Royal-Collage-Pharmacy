@@ -7,6 +7,14 @@ import {
   type AdmissionDocumentStatus,
 } from "@/roles/shared/features/admissions/documents";
 import {
+  approvalExamDocumentRequirements,
+  isApprovalExamDocumentSet,
+  isApprovalExamForm,
+  isApprovalExamProgress,
+  type ApprovalExamForm,
+  type ApprovalExamProgress,
+} from "@/roles/shared/features/admissions/approval-exam";
+import {
   cancelAdmissionExamRound as cancelAdmissionExamRoundRecord,
   assertInstitutionExamScope,
   closeAdmissionExamRound as closeAdmissionExamRoundRecord,
@@ -180,6 +188,9 @@ export interface Admission {
   reviewedBy?: string;
   licenseStatus: LicenseVerificationStatus;
   licenseCheckedAt: string;
+  /** ใบสมัครสอบอนุมัติที่ยื่นผ่านฟอร์มดิจิทัล: snapshot ผู้สมัคร คุณสมบัติ และการรับรอง ณ วันยื่น */
+  approvalForm?: ApprovalExamForm;
+  approvalProgress?: ApprovalExamProgress;
 }
 
 export interface Payment {
@@ -666,6 +677,11 @@ function normalizeAdmissionDocuments(
       ? createMockSubmittedDocuments({ accepted: true })
       : createAdmissionDocuments();
   }
+  const requirements = isApprovalExamDocumentSet(value.filter((document): document is { id: string } => (
+    Boolean(document) && typeof document === "object" && typeof (document as { id?: unknown }).id === "string"
+  )))
+    ? approvalExamDocumentRequirements
+    : undefined;
 
   const storedById = new Map(
     value
@@ -675,7 +691,7 @@ function normalizeAdmissionDocuments(
       .map((document) => [document.id as string, document]),
   );
 
-  return createAdmissionDocuments().map((requirement) => {
+  return createAdmissionDocuments(requirements).map((requirement) => {
     const stored = storedById.get(requirement.id);
     if (!stored) return requirement;
 
@@ -744,7 +760,9 @@ function normalizeAdmission(value: unknown): Admission | null {
   const legacyRouting = legacyAdmissionRouting[admission.id.trim()];
   const institutionId = isNonEmptyString(admission.institutionId) &&
     ORGANISATION_LIST.some((organisation) => (
-      organisation.kind === "institution" && organisation.id === admission.institutionId?.trim()
+      // College-level applications (no training institution) are owned by the college itself.
+      (organisation.kind === "institution" || organisation.kind === "college") &&
+      organisation.id === admission.institutionId?.trim()
     ))
     ? admission.institutionId.trim()
     : legacyRouting?.institutionId ?? ORGANISATIONS.siriraj.id;
@@ -786,6 +804,8 @@ function normalizeAdmission(value: unknown): Admission | null {
       : undefined,
     licenseStatus,
     licenseCheckedAt,
+    ...(applicationType === "exam" && isApprovalExamForm(admission.approvalForm) ? { approvalForm: admission.approvalForm } : {}),
+    ...(applicationType === "exam" && isApprovalExamProgress(admission.approvalProgress) ? { approvalProgress: admission.approvalProgress } : {}),
   };
 }
 
